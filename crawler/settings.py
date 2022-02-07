@@ -16,11 +16,6 @@ DISABLE_HEADLESS = True
 
 FAKEUSERAGENT_FALLBACK = 'Mozilla/5.0 (Android; Mobile; rv:40.0)'
 
-PROXY_LIST = './proxies.txt'
-PROXY_MODE = 0
-RETRY_TIMES = 3
-RETRY_HTTP_CODES = [500, 503, 504, 400, 403, 404, 408]
-
 ROTATING_PROXY_LIST_PATH = 'proxies.txt'
 ROTATING_PROXY_BACKOFF_BASE = 30
 ROTATING_PROXY_BACKOFF_CAP = 60
@@ -40,7 +35,7 @@ ROBOTSTXT_OBEY = True
 # See also autothrottle settings and docs
 # DOWNLOAD_DELAY = 3
 # The download delay setting will honor only one of:
-# CONCURRENT_REQUESTS_PER_DOMAIN = 8
+CONCURRENT_REQUESTS_PER_DOMAIN = 4
 # CONCURRENT_REQUESTS_PER_IP = 8
 
 # Disable cookies (enabled by default)
@@ -65,9 +60,8 @@ ROBOTSTXT_OBEY = True
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
     'scrapy.downloadermiddlewares.retry.RetryMiddleware': 90,
-    #'scrapy_proxies.RandomProxy': 100,
-    'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
-    'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
+    'rotating_proxies.middlewares.RotatingProxyMiddleware': None,  # 610,
+    'rotating_proxies.middlewares.BanDetectionMiddleware': None,  # 620,
     'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
     'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
     'scrapy_fake_useragent.middleware.RandomUserAgentMiddleware': 400,
@@ -94,7 +88,7 @@ AUTOTHROTTLE_START_DELAY = 5
 AUTOTHROTTLE_MAX_DELAY = 60
 # The average number of requests Scrapy should be sending in parallel to
 # each remote server
-AUTOTHROTTLE_TARGET_CONCURRENCY = 2.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = 0.5
 # Enable showing throttling stats for every response received:
 AUTOTHROTTLE_DEBUG = False
 

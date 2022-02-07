@@ -29,6 +29,7 @@ class ListingSpider(Spider):
     name = 'listing'
     custom_settings = {
         'ROBOTSTXT_OBEY': False,
+        'HTTPERROR_ALLOWED_CODES': [410, 404],
         'ITEM_PIPELINES': {
             'crawler.pipelines.ListingPipeline': 300
         }
@@ -48,34 +49,46 @@ class ListingSpider(Spider):
             yield Request(row.url, callback=self.parse)
 
     def parse(self, resp):
-        res = []
+        content = [{'status_code': resp.status}]
 
-        # Title
-        res.append({'title': resp.xpath('//title/text()').get()})
+        if resp.status == 410:  # = Sold
+            header_xpath = '//div[@class="listing-header"]//text()'
+            inactive_xpath = '//div[@class="listing-inactive"]//text()'
+            content.extend([
+                {'header': resp.xpath(header_xpath).get()},
+                {'inactive': resp.xpath(inactive_xpath).get()}
+            ])
+        elif resp.status == 404:  # = Gone
+            main_xpath = '//main//text()'
+            content.append({'main': resp.xpath(main_xpath).get()})
+        else:
+            # Title
+            content.append({'title': resp.xpath('//title/text()').get()})
 
-        # Overview
-        overview_xpath = '//div[@class="listing-overview"]//text()'
-        overview = []
-        for p in resp.xpath(overview_xpath):
-            overview.append(p.get().strip())
-        res.append({'overview': overview})
+            # Overview
+            overview_xpath = '//div[@class="listing-overview"]//text()'
+            overview = []
+            for p in resp.xpath(overview_xpath):
+                overview.append(p.get().strip())
+            content.append({'overview': overview})
 
-        # Detail
-        for detail in resp.xpath('//div[@class="details-grid__item-text"]'):
-            k = detail.xpath('.//dt//text()').get()
-            v = detail.xpath('.//dd//text()').get()
-            res.append({k: v})
+            # Detail
+            for detail in resp.xpath(
+                    '//div[@class="details-grid__item-text"]'):
+                k = detail.xpath('.//dt//text()').get()
+                v = detail.xpath('.//dd//text()').get()
+                content.append({k: v})
 
-        # Info
-        for info in resp.xpath('//div[@class="info-table__row"]'):
-            k = info.xpath('.//dt//text()').get()
-            v = info.xpath('.//dd//text()').get()
-            res.append({k: v})
+            # Info
+            for info in resp.xpath('//div[@class="info-table__row"]'):
+                k = info.xpath('.//dt//text()').get()
+                v = info.xpath('.//dd//text()').get()
+                content.append({k: v})
 
-        yield {
+        return {
             'url': resp.url,
             'visited': datetime.now(timezone('Europe/Helsinki')),
-            'content': json.dumps(res)
+            'content': json.dumps(content)
         }
 
     def closed(self, reason):

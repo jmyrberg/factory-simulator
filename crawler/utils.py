@@ -4,6 +4,7 @@
 import io
 import logging
 import pickle
+import requests
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -15,6 +16,9 @@ def console(text, bold=False): pass  # NOQA
 webdriver_manager.utils.console = console  # NOQA
 
 from webdriver_manager.chrome import ChromeDriverManager
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_chromedriver(settings=None, options=None):
@@ -29,3 +33,12 @@ def get_chromedriver(settings=None, options=None):
     logging.getLogger('urllib3').setLevel(logging.INFO)
     return driver
 
+
+def update_proxies():
+    resp = requests.get(
+        'https://proxylist.geonode.com/api/proxy-list?limit=50&'
+        'page=1&sort_by=lastChecked&sort_type=desc')
+    proxylines = [f'{d["ip"]}:{d["port"]}' for d in resp.json()['data']]
+    with open('proxies.txt', 'w') as f:
+        f.write('\n'.join(proxylines))
+        logger.info('Proxies updated successfully!')
