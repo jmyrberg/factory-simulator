@@ -1,0 +1,7 @@
+attrs
+pandas
+selenium
+scrapy
+tqdm
+webdriver-manager
+pytest
