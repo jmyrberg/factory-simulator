@@ -29,6 +29,7 @@ def get_chromedriver(settings=None, options=None):
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+    driver.minimize_window()
     logging.getLogger('selenium').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.INFO)
     return driver

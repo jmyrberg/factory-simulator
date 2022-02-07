@@ -46,7 +46,7 @@ class ListingLinkPipeline(BaseSqlitePipeline):
         url = item['url']
         listing = session.query(Listing).filter_by(url=url).first()
         if listing is None:
-            logger.info(f'Adding listing URL "{url}"...')
+            logger.debug(f'Adding listing URL "{url}"...')
             listing = Listing(**item)
             try:
                 session.add(listing)
@@ -57,9 +57,10 @@ class ListingLinkPipeline(BaseSqlitePipeline):
                     'Failed to add listing URL "{url}", rolling back...')
                 session.rollback()
                 logger.warning('Rolled back successfully!')
-                raise
+        else:
+            logger.info(f'Listing URL "{url}" already exists!')
 
-        return item
+        return DropItem
 
 
 class ListingPipeline(BaseSqlitePipeline):
@@ -78,13 +79,11 @@ class ListingPipeline(BaseSqlitePipeline):
             else:  # Add
                 listing = Listing(**item)
                 session.add(listing)
-
             session.commit()
             logger.info(f'{mode} URL "{url}" listing content done!')
         except:
             logger.error('Failed with URL "{url}", rolling back...')
             session.rollback()
             logger.error('Rolled back successfully!')
-            return DropItem
 
-        return item
+        return DropItem

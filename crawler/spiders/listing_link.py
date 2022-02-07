@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 class ListingLinkSpider(Spider):
     name = 'listing-link'
     base_url = 'https://asunnot.oikotie.fi/myytavat-asunnot?pagination='
+    listings_per_page = 24
     listing_link_extractor = LinkExtractor(
         attrs=('href', 'ng-href'),
         allow_domains=('asunnot.oikotie.fi'),
@@ -55,9 +56,8 @@ class ListingLinkSpider(Spider):
     def start_requests(self):
         # Listing stats
         avg_listing_days = 14
-        listings_per_page = 24
         avg_listings = 40_000
-        avg_pages = avg_listings / listings_per_page
+        avg_pages = avg_listings / self.listings_per_page
         avg_pages_per_day = avg_pages / avg_listing_days
 
         # Check the latest creation date
@@ -74,11 +74,11 @@ class ListingLinkSpider(Spider):
         last_existing_page = self._get_pagination_urls()
         logger.info(f'Last calculated page to fetch: {last_calc_page}')
         logger.info(f'Last existing page: {last_existing_page}')
-        last_page = max(min(last_calc_page, last_existing_page), 10)
+        last_page = max(min(last_calc_page, last_existing_page), 5)
         logger.info(f'Fetching pages until: {last_page}')
 
         # Fetch pagination links
-        for page in range(1, last_page):
+        for page in range(1, last_page + 1):
             yield SeleniumRequest(
                 f'{self.base_url}{page}',
                 driver_func=self._handle_pagination_page,
@@ -140,9 +140,11 @@ class ListingLinkSpider(Spider):
     def _handle_pagination_page(request, spider, driver):
         listings_xpath = '//div[contains(@class, "cards__card ng-scope")]'
         driver.execute_script("window.scrollTo(0,document.body.scrollHeight)")
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_all_elements_located((By.XPATH, listings_xpath)))
-        driver.implicitly_wait(0.5)
+        WebDriverWait(driver, 10).until(lambda browser:
+            len(browser.find_elements_by_xpath(listings_xpath)) ==
+            int(1.0 * spider.listings_per_page))  # Note: Last page problematic
+        # EC.presence_of_all_elements_located((By.XPATH, listings_xpath)))
+        # driver.implicitly_wait(0.5)
 
         return HtmlResponse(
             driver.current_url,
