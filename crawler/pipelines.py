@@ -1,5 +1,6 @@
 """Module for scrapy pipelines."""
 
+
 import logging
 
 from scrapy import signals
