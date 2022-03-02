@@ -6,3 +6,4 @@ tqdm
 webdriver-manager
 pytest
 scrapy-rotating-proxies
+scrapy-fake-useragent
