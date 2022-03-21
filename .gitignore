@@ -9,7 +9,6 @@ results/*
 *.env.*
 !*.env.example
 .DS_Store
-notebooks/*
 docs/source/_build/*
 proxies.txt
 
