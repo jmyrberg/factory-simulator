@@ -4,7 +4,7 @@
 import salabim as sim
 
 
-class Container(sim.Component):
+class Tank(sim.Component):
 
     def setup(self, init_level=1_000):
         self.level = sim.Resource('level', init_level, anonymous=True)

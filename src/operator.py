@@ -1,76 +1,78 @@
-"""Module for operator."""
+"""Models operator."""
 
 
-import salabim as sim
+import logging
+
+import arrow
+
+from src.base import Base
 
 
-class Operator(sim.Component):
-    def setup(self):
-        self.at_work = sim.State('at_work', True)
+logger = logging.getLogger(__name__)
+
+
+class Operator(Base):
+
+    def __init__(self, env):
+        super().__init__(env, name='Operator')
+        self.env = env
+        self.state = 'home'
         self.machine = None
 
-    def attach_machine(self, machine):
+        self.data = []
+
+        self.env.process(self.home())
+
+    def assign_machine(self, machine):
         self.machine = machine
+        return self
 
-    def get_next_arrival(self):
-        # TODO: Probability of being sick?
-
-        # If weekend, don't go to work
-        dt = self.env.t_to_datetime(self.env.t())
-        if dt.day in (9, 10):
-            print('Not going to work today as it is weekend! :)')
-            next_workday = 1
+    def _get_next_work_arrival(self):
+        ts = arrow.get(self.env.now)
+        if ts.weekday in (5, 6):
+            days = 7 - ts.weekday
         else:
-            next_workday = dt.day + 1
+            days = 0 if ts.hour < 8 else 1
 
+        next_day = ts.day + days
         next_hour = 8
-        next_minutes = 0
-        early_or_late_minutes = int(self.env.minutes(sim.Uniform(-5, 15).sample()))
-        next_minutes += early_or_late_minutes
-        next_seconds = int(sim.Uniform(0, 60).sample())
-        arrival_dt = dt.replace(
-            day=next_workday,
-            hour=next_hour,
-            minute=next_minutes,
-            second=next_seconds
-        )
+        next_minute = 0
+        arrival = ts.replace(
+            day=next_day, hour=next_hour, minute=next_minute)
+        # self.log(f'Arrival: {arrival}')
+        return arrival.timestamp() - self.env.now
 
-        print(f'Next work arrival: {arrival_dt}')
-        return self.env.datetime_to_t(arrival_dt)
+    def home(self):
+        self.log('Chilling at home...')
+        yield self.env.timeout(self._get_next_work_arrival())
+        self.log('Going to work...')
+        yield self.env.process(self.work())
 
-    def process(self):
-        while True:  # = "oravanpyörä"
-            # Arrive at work ~8-11
-            print('Arriving at work')
-            arrival = self.get_next_arrival()
-            yield self.hold(till=arrival)
+    def work(self):
+        self.log('Working...')
+        self.log('Turning machine on...')
+        self.machine.switch_on()
+        self.log('Turning program on...')
+        self.machine.program = 1
+        yield self.env.timeout(self.hours(3.5))  # FIXME: Randomize
 
-            # Turn on the machine
-            print('Turning on the machine')
-            self.machine.switch_on()
-            self.machine.set_program(1)
+        # Go to lunch
+        # TODO: Wait for batch to finish
+        self.log('Going to lunch...')
+        self.machine.switch_off()
+        had_lunch = self.env.process(self.lunch())
+        yield had_lunch
 
-            # TODO: Fix this wait etc.
-            #       Needs to wait until tank filled etc.?
-            yield self.wait((self.machine.state, 'error'),
-                            fail_delay=self.env.hours(3.5))
-            if not self.failed():  # Yes errors
-                yield from self.machine.fix_error()
+        # Continue working
+        self.log('Continuing working...')
+        self.machine.switch_on()
+        yield self.env.timeout(self.hours(4))  # FIXME: Randomize
 
-            self.machine.switch_off()
+        self.log('Going home...')
+        self.machine.switch_off()
+        self.env.process(self.home())
 
-            # Go to lunch break
-            yield self.hold(self.env.minutes(30))
-
-            # Turn the machine back on
-            self.machine.switch_on()
-            self.machine.set_program(1)
-
-            # Wait if errors / operate machine
-            yield self.wait((self.machine.state, 'error'),
-                            fail_delay=self.env.hours(3.5))
-            if not self.failed():  # Yes errors
-                self.machine.fix_error()
-
-            # Go home
-            self.machine.switch_off()
+    def lunch(self):
+        self.log('Eating lunch...')
+        yield self.env.timeout(self.minutes(30))  # FIXME: Randomize
+        self.log('Lunch done!')

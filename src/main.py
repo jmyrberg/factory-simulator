@@ -1,60 +1,28 @@
-"""Factory machine simulator.
-
-Components:
-- Machine status
-- Consumable
-- Consumable tank
-
-- Environment: Temperature
+"""Run simulation."""
 
 
-Material flow:
-   ( TANK )
--> ( RAW MATERIAL )
--> ( MACHINE )
--> ( PRODUCT )
+import logging
+import sys
 
-Processes interrupting material flow and states:
-- Generate raw material in tank
-- Consume raw material from tank
-- Machine converts raw material into end product with given capacity
-- End product is created
-"""
-
-
-import uuid
-
-from datetime import datetime, timedelta
-from pytz import timezone
-
-import salabim as sim
-
-from matplotlib import pyplot as plt
+import arrow
+import simpy
 
 from src.machine import Machine
 from src.operator import Operator
-from src.storage import Container
 
 
-env = sim.Environment(
-    time_unit='minutes',
-    datetime0=datetime.now(timezone('Europe/Helsinki')),
-    trace=True
-)
+logging.basicConfig(
+     stream=sys.stdout,
+     level=logging.INFO,
+     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+     datefmt='%H:%M:%S'
+ )
+logger = logging.getLogger(__name__)
+logger.info('Starting simulation')
 
-env.produced_parts = 0
-storage = Container()
-machine = Machine()
-operator = Operator()
+start = arrow.now()
+env = simpy.Environment(initial_time=start.timestamp())
+machine = Machine(env)
+operator = Operator(env).assign_machine(machine)
 
-# Monitoring
-sim.AnimateMonitor(
-    machine.state.all_monitors()[-1],
-    vertical_map=lambda x: 'off idle on error'.split().index[x],
-    x=10, y=200,
-    horizontal_scale=10, vertical_scale=10
-)
-
-# Run
-env.animate(False)
-env.run(60 * 24 * 2)
+env.run(until=start.timestamp() + 2 * 24 * 60 * 60)
