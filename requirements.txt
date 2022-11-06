@@ -1,9 +1,3 @@
-attrs
+numpy
 pandas
-selenium
-scrapy
-tqdm
-webdriver-manager
-pytest
-scrapy-rotating-proxies
-scrapy-fake-useragent
+salabim
