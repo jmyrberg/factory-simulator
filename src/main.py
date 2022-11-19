@@ -27,4 +27,4 @@ env = simpy.Environment(initial_time=start.timestamp())
 machine = Machine(env)
 operator = Operator(env).assign_machine(machine)
 
-env.run(until=start.timestamp() + 2 * 24 * 60 * 60)
+env.run(until=start.timestamp() + 3 * 24 * 60 * 60)

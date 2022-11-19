@@ -47,7 +47,9 @@ class Machine(Base):
             **{f'switching_{s}': self.env.event() for s in self.states},
             **{f'switched_{s}': self.env.event() for s in self.states},
             'issue': self.env.event(),
-            'issue_cleared': self.env.event()
+            'issue_cleared': self.env.event(),
+            'production_started': self.env.event(),
+            'production_ended': self.env.event()
         }
         self.procs = {}
 
@@ -132,6 +134,7 @@ class Machine(Base):
         # If production is ongoing, interrupt gracefully (force=False)
         # or with force (force=True)
         self._interrupt_production(ManualSwitchOffCause(force=force))
+        yield self.events['production_ended']
 
         # No production automatically when switched on
         if self.program is not None:
@@ -157,6 +160,7 @@ class Machine(Base):
         # TODO: Failure probability etc.
         # TODO: Look at what was originally asked for and implement
         while True:
+            self._trigger_event('production_started')
             try:
                 # Run one batch of program
                 self.procs['program_run'] = (
@@ -177,6 +181,7 @@ class Machine(Base):
                     # FIXME: Are we sure that production can't be in progress?
                 else:
                     raise i
+                self._trigger_event('production_ended')
                 break
 
     def _on(self):
