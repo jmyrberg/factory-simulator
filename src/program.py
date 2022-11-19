@@ -1,18 +1,12 @@
 """Machine programs."""
 
 
-import logging
-
-import arrow
 import simpy
 import uuid
 
 from src.base import Base
 from src.causes import ManualSwitchOffCause, UnknownCause
 from src.issues import LowConsumableLevelIssue
-
-
-logger = logging.getLogger(__name__)
 
 
 class Program(Base):
