@@ -62,7 +62,7 @@ class Machine(Base):
                 yield self.procs[state]
 
             self.state = state
-            self.log(f'{state.upper()}')
+            self.debug(f'{state.upper()}')
             self._trigger_event(f'switched_{state}')
 
     def _resume_state(self):
@@ -163,7 +163,7 @@ class Machine(Base):
                     self.env.process(self.program.run()))
                 yield self.procs['program_run']
             except simpy.Interrupt as i:
-                self.log(f'Production interrupted: {i}')
+                self.warning(f'Production interrupted: {i}')
                 cause_or_issue = i.cause
 
                 # Causes are reasons to interrupt batch process

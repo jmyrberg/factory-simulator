@@ -5,6 +5,7 @@ import logging
 
 import arrow
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,15 +16,27 @@ class Base:
         self.name = kwargs.get('name', 'Unknown')
 
     def _trigger_event(self, name, value=None, keep_on=False):
-        self.log(f'Triggering event {name}')
+        self.debug(f'Triggering event {name}')
         self.events[name].succeed(value)
         if not keep_on:
             self.events[name] = self.env.event()
 
-    def log(self, message):
+    def debug(self, message):
+        self.log(message, level='debug')
+
+    def info(self, message):
+        self.log(message, level='info')
+
+    def warning(self, message):
+        self.log(message, level='warning')
+
+    def error(self, message):
+        self.log(message, level='error')
+
+    def log(self, message, level='info'):
         ts = arrow.get(self.env.now)
         ts_hki = ts.to('Europe/Helsinki').format('YYYY-MM-DD HH:mm:ss')
-        logger.info(f'{ts_hki} - {self.name} - {message}')
+        getattr(logger, level)(f'{ts_hki} - {self.name:10.10s} - {message}')
 
     def minutes(self, seconds):
         return 60 * seconds

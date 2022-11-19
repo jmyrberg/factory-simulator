@@ -15,8 +15,8 @@ from src.operator import Operator
 
 logging.basicConfig(
      stream=sys.stdout,
-     level=logging.INFO,
-     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+     level=logging.DEBUG,
+     format='%(asctime)s - %(name)s - %(levelname)-7s - %(message)s',
      datefmt='%H:%M:%S'
  )
 logger = logging.getLogger(__name__)

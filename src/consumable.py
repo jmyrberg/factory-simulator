@@ -10,9 +10,6 @@ import uuid
 from src.base import Base
 
 
-logger = logging.getLogger(__name__)
-
-
 class Consumable(Base):
 
     def __init__(self, env, content='raw-material', capacity=100, init=None):

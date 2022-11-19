@@ -18,7 +18,7 @@ class Program(Base):
         self.batch = {}
 
     def run(self):
-        self.log(f'Creating batch {self.name}')
+        self.debug(f'Creating batch {self.name}')
         start_time = self.env.now
         duration = 60 * 15  # TODO: Sample
         self.batch = {
@@ -34,7 +34,7 @@ class Program(Base):
             container = d['consumable'].container
             expected_amount = duration * d['rate']
             if container.level < expected_amount:
-                self.log('Will not produce due low consumable level')
+                self.warning('Will not produce due low consumable level')
                 raise simpy.Interrupt(LowConsumableLevelIssue(d['consumable']))
 
         # Run or interrupt
@@ -43,10 +43,11 @@ class Program(Base):
             yield self.env.timeout(duration)
             self.batch['status'] = 'success'
         except simpy.Interrupt as i:
-            self.log(f'Program interrupted: {i}')
+            self.warning(f'Program interrupted: {i}')
             if isinstance(i.cause, ManualSwitchOffCause) and not i.cause.force:
                 time_left = start_time + duration - self.env.now
-                self.log(f'Waiting for current batch to finish in {time_left}')
+                self.debug(
+                        f'Waiting for current batch to finish in {time_left}')
                 yield self.env.timeout(time_left)
                 self.batch['status'] = 'success'
             else:
@@ -56,10 +57,10 @@ class Program(Base):
         end_time = self.env.now
         self.batch['end_time'] = end_time
         time_spent = end_time - start_time
-        self.log(f'Time spent on batch: {time_spent}')
+        self.debug(f'Time spent on batch: {time_spent}')
         for name, d in self.bom.items():
             amount = time_spent * d['rate']
-            self.log(f'Consuming {amount:.2f} of {name}')
+            self.debug(f'Consuming {amount:.2f} of {name}')
             yield from d['consumable'].consume(amount)
 
-        self.log('Batch done!')
+        self.info('Batch done!')
