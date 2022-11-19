@@ -14,9 +14,15 @@ class Base:
         self.env = env
         self.name = kwargs.get('name', 'Unknown')
 
+    def _trigger_event(self, name, value=None, keep_on=False):
+        self.log(f'Triggering event {name}')
+        self.events[name].succeed(value)
+        if not keep_on:
+            self.events[name] = self.env.event()
+
     def log(self, message):
         ts = arrow.get(self.env.now).format('YYYY-MM-DD HH:mm:ss')
-        logger.info(f'{ts} - {self.name}: {message}')
+        logger.info(f'{ts} - {self.name} - {message}')
 
     def minutes(self, seconds):
         return 60 * seconds

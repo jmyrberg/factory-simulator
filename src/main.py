@@ -4,6 +4,8 @@
 import logging
 import sys
 
+sys.path.append('./')
+
 import arrow
 import simpy
 
