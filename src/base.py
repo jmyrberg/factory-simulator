@@ -21,8 +21,9 @@ class Base:
             self.events[name] = self.env.event()
 
     def log(self, message):
-        ts = arrow.get(self.env.now).format('YYYY-MM-DD HH:mm:ss')
-        logger.info(f'{ts} - {self.name} - {message}')
+        ts = arrow.get(self.env.now)
+        ts_hki = ts.to('Europe/Helsinki').format('YYYY-MM-DD HH:mm:ss')
+        logger.info(f'{ts_hki} - {self.name} - {message}')
 
     def minutes(self, seconds):
         return 60 * seconds

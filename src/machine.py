@@ -22,7 +22,6 @@ class Machine(Base):
             on -> error: 
         """
         super().__init__(env, name='Machine')
-        self.env = env
         # User interface - limits what user can do
         self.ui = simpy.PriorityResource(env)
         self.state = 'off'
@@ -75,13 +74,13 @@ class Machine(Base):
         yield self.env.timeout(1)  # TODO: Randomize
         self.events['issue_cleared'].succeed()
         self.events['issue_cleared'] = self.env.event()
-        self._resume_state()
+        yield self.env.process(self._set_state('on'))
 
     def _trigger_issue(self, issue):
         yield self.env.timeout(1)  # TODO: Randomize
 
         # Ensure operating mode is error
-        yield self.env.process(self._set_state('error'))
+        self.env.process(self._set_state('error'))
 
         # Lock UI and trigger "issue" event
         with self.ui.request(priority=-1) as req:
@@ -109,7 +108,7 @@ class Machine(Base):
                     self._set_state('off', wait=True, force=force))
 
     def _switch_program(self, program):
-        if self.state != 'off' and self.programs[program] != self.program:
+        if self.programs[program] != self.program:
             self._trigger_event('switching_program')
             self.program = self.programs[program]
             yield self.env.timeout(10)  # TODO: Randomize + which possible?
@@ -135,8 +134,9 @@ class Machine(Base):
         self._interrupt_production(ManualSwitchOffCause(force=force))
 
         # No production automatically when switched on
-        self._switch_program(0)
-        yield self.events['switched_program']
+        if self.program is not None:
+            self.env.process(self._switch_program(0))
+            yield self.events['switched_program']
 
         yield self.env.timeout(30)  # TODO: Randomize + dependencies?
 

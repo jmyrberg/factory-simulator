@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info('Starting simulation')
 
-start = arrow.now()
+start = arrow.now('Europe/Helsinki')
 env = simpy.Environment(initial_time=start.timestamp())
 machine = Machine(env)
 operator = Operator(env).assign_machine(machine)

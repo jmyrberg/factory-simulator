@@ -20,7 +20,6 @@ class Operator(Base):
             5) Go home
         """
         super().__init__(env, name='Operator')
-        self.env = env
         self.state = 'home'
         self.machine = None
 
@@ -37,9 +36,9 @@ class Operator(Base):
         return self
 
     def _get_time_until_next_work_arrival(self):
-        ts = arrow.get(self.env.now)
-        if ts.weekday in (5, 6):
-            days = 7 - ts.weekday
+        ts = arrow.get(self.env.now).to('Europe/Helsinki')
+        if ts.weekday() in (5, 6):
+            days = 7 - ts.weekday()
         else:
             days = 0 if ts.hour < 8 else 1
 
@@ -54,11 +53,12 @@ class Operator(Base):
         if isinstance(issue, LowConsumableLevelIssue):
             # TODO: More complex, call repair person
             yield self.env.process(issue.consumable.fill_full())
-            yield self.env.process(self.machine.reset_issue())
+            yield self.env.process(self.machine.clear_issue())
         else:
             raise UnknownIssue(f'How to fix {issue}?')
 
     def _monitor_issues(self):
+        # TODO: React if no production output for a while
         while True:
             # Wait for issues...
             issue = yield self.machine.events['issue']
@@ -77,11 +77,13 @@ class Operator(Base):
 
     def _home(self):
         self.log('Chilling at home...')
+        self.state = 'home'
         yield self.env.timeout(self._get_time_until_next_work_arrival())
         yield self.env.process(self._work())
 
     def _work(self):
         self.log('Working...')
+        self.state = 'work'
         self.events['arrive_at_work'].succeed()
         self.events['arrive_at_work'] = self.env.event()
 
@@ -99,9 +101,12 @@ class Operator(Base):
         yield self.machine.events['switched_off']
         lunch = self.env.process(self._lunch())
         yield lunch
+        self.state = 'work'
 
         self.log('Continuing working...')
         yield from self.machine.switch_on()
+        yield (self.machine.events['switched_on']
+               | self.machine.events['switched_idle'])
         yield from self.machine.switch_program(1)
         yield self.env.timeout(self.hours(4))  # TODO: Randomize
 
@@ -112,4 +117,5 @@ class Operator(Base):
 
     def _lunch(self):
         self.log('Having lunch...')
+        self.state = 'lunch'
         yield self.env.timeout(self.minutes(30))  # TODO: Randomize
