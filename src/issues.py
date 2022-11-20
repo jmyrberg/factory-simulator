@@ -19,5 +19,13 @@ class LowConsumableLevelIssue(ProductionIssue):
         self.consumable = consumable
 
 
+class OverheatIssue(BaseIssue):
+    """Machine is overheating."""
+    def __init__(self, realized, limit, **kwargs):
+        super().__init__(kwargs.get('name'))
+        self.realized = realized
+        self.limit = limit
+
+
 class UnknownIssue(BaseIssue):
     """Unknown issue."""

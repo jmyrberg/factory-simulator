@@ -4,6 +4,7 @@
 import logging
 
 import arrow
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -54,3 +55,9 @@ class Base:
         curr_ts = arrow.get(self.env.now)
         target_ts = curr_ts.shift(**kwargs)
         return (target_ts - curr_ts).total_seconds()
+
+    def norm(self, mu, sigma):
+        return np.random.normal(mu, sigma)
+
+    def pnorm(self, mu, sigma):
+        return np.abs(self.norm(mu, sigma))

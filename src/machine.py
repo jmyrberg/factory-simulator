@@ -1,12 +1,13 @@
 """Machine in a factory."""
 
 
+import arrow
 import simpy
 
 from src.base import Base
 from src.causes import BaseCause, ManualSwitchOffCause
 from src.consumable import Consumable
-from src.issues import ProductionIssue
+from src.issues import ProductionIssue, OverheatIssue
 from src.program import Program
 
 
@@ -40,8 +41,15 @@ class Machine(Base):
         }
         self.program = self.programs[0]
 
-        self.data = []
+        # Statistics
+        self.temperature = None
+        self.room_temperature = None
+
+        self.data = {
+            'temperature': [],
+        }
         self.events = {
+            'state_change': self.env.event(),
             'switching_program': self.env.event(),
             'switched_program': self.env.event(),
             **{f'switching_{s}': self.env.event() for s in self.states},
@@ -49,13 +57,20 @@ class Machine(Base):
             'issue': self.env.event(),
             'issue_cleared': self.env.event(),
             'production_started': self.env.event(),
-            'production_ended': self.env.event()
+            'production_ended': self.env.event(),
+            'temperature_change': self.env.event()
         }
-        self.procs = {}
+        self.procs = {
+            'room_temperature': self.env.process(self._room_temperature()),
+            'temperature': self.env.process(self._temperature()),
+            'temperature_monitor':
+                self.env.process(self._temperature_monitor())
+        }
 
     def _set_state(self, state, *args, wait=False, **kwargs):
         if self.state != state:
             self._trigger_event(f'switching_{state}')
+            self._trigger_event('state_change', value=self.state)
             yield self.env.timeout(10)  # TODO: Randomize/from-to dependent
 
             func = getattr(self, f'_{state}')
@@ -93,6 +108,74 @@ class Machine(Base):
             # Wait for issue to be cleared by someone (=self.clear_issue())
             yield self.env.timeout(1)
             yield self.events['issue_cleared']
+
+    def _room_temperature(self):
+        while True:
+            ts = arrow.get(self.env.now).to('Europe/Helsinki')
+            if 4 <= ts.month and ts.month <= 8:
+                season_avg = 22
+            else:
+                season_avg = 18
+            if 23 <= ts.hour or ts.hour <= 7:
+                hour_norm = -self.pnorm(1, 1)
+
+            self.room_temperature = season_avg + hour_norm
+            # self.debug(f'Room temperature: {self.room_temperature}')
+            yield self.env.timeout(60)
+
+    def _temperature_monitor(self):
+        yield self.env.timeout(2)
+        while True:
+            yield self.events['temperature_change']
+            if self.temperature > 80:
+                issue = OverheatIssue(self.temperature, 80)
+                yield self.env.process(self._trigger_issue(issue))
+            elif self.temperature > 70:
+                self.warning(f'Temperature very high: {self.temperature}')
+
+    def _temperature(self):
+        # TODO: Sometime very high temperatures (check Kaggle for reference)
+        # TODO: Overheat monitoring process
+        # TODO: Cleanup
+        # TODO: Collect data
+        yield self.env.timeout(1)
+        self.temperature = self.room_temperature
+        last_change_time = self.env.now
+        time_resolution = 60
+        change_per_hour = {
+            'production': 10,
+            'on': 1,
+            'idle': -3,
+            'off': -5,
+            'error': -5
+        }
+        while True:
+            # Wait for state change that affects the temperature
+            timeout = self.env.timeout(time_resolution)
+            state_change = self.events['state_change']
+            yield timeout | state_change
+            if not state_change.processed:  # From timeout
+                state = self.state
+            else:
+                state = state_change.value
+
+            duration = self.env.now - last_change_time
+            duration_hours = duration / 60 / 60
+            last_change_time = self.env.now
+
+            # Change depends on the duration of the previous state
+            # The further away from room temperature, the faster the cooling
+            delta_room = (
+                (self.room_temperature - self.temperature)
+                / 20 * duration_hours
+            )  # = ~5 degrees in an hour if difference is 100
+            delta_mode = change_per_hour[state] * duration_hours
+            new_temp = self.temperature + delta_mode + delta_room
+            noise = self.norm(0, duration_hours)
+            self.temperature = max(self.room_temperature, new_temp) + noise
+            # self.debug(f'{duration / 60 / 60:.2f} hours spent in "{state}"')
+            self.debug(f'Machine temperature: {self.temperature:.2f}')
+            yield self.env.timeout(60)
 
     def switch_on(self):
         yield self.env.timeout(1)
