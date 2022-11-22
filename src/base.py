@@ -15,6 +15,7 @@ class Base:
     def __init__(self, env, *args, **kwargs):
         self.env = env
         self.name = kwargs.get('name', 'Unknown')
+        self.tz = 'Europe/Helsinki'
 
     def _trigger_event(self, name, value=None, keep_on=False):
         self.debug(f'Triggering event {name}')
@@ -35,9 +36,9 @@ class Base:
         self.log(message, level='error')
 
     def log(self, message, level='info'):
-        ts = arrow.get(self.env.now)
-        ts_hki = ts.to('Europe/Helsinki').format('YYYY-MM-DD HH:mm:ss')
-        getattr(logger, level)(f'{ts_hki} - {self.name:10.10s} - {message}')
+        ts = arrow.get(self.env.now).to(self.tz)
+        ts_hki = ts.format('YYYY-MM-DD HH:mm:ss')
+        getattr(logger, level)(f'{ts_hki} - {self.name} - {message}')
 
     def minutes(self, seconds):
         return 60 * seconds
@@ -51,10 +52,14 @@ class Base:
     def days(self, seconds):
         return self, self.hours(24 * seconds)
 
-    def time_until(self, **kwargs):
-        curr_ts = arrow.get(self.env.now)
-        target_ts = curr_ts.shift(**kwargs)
-        return (target_ts - curr_ts).total_seconds()
+    @property
+    def now_dt(self):
+        return arrow.get(self.env.now).to(self.tz)
+
+    def time_until(self, target_dt):
+        if target_dt < self.now_dt:
+            raise ValueError(f'{target_dt} < {self.now_dt}')
+        return (target_dt - self.now_dt).total_seconds()
 
     def norm(self, mu, sigma):
         return np.random.normal(mu, sigma)

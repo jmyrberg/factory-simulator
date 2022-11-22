@@ -5,7 +5,7 @@ import simpy
 import uuid
 
 from src.base import Base
-from src.causes import ManualSwitchOffCause, UnknownCause
+from src.causes import BaseCause, UnknownCause
 from src.issues import LowConsumableLevelIssue
 
 
@@ -18,7 +18,7 @@ class Program(Base):
         self.batch = {}
 
     def run(self):
-        self.debug(f'Creating batch {self.name}')
+        self.debug(f'Starting program {self.name}')
         start_time = self.env.now
         duration = 60 * 15  # TODO: Sample
         self.batch = {
@@ -44,7 +44,7 @@ class Program(Base):
             self.batch['status'] = 'success'
         except simpy.Interrupt as i:
             self.warning(f'Program interrupted: {i}')
-            if isinstance(i.cause, ManualSwitchOffCause) and not i.cause.force:
+            if isinstance(i.cause, BaseCause) and not i.cause.force:
                 time_left = start_time + duration - self.env.now
                 self.debug(
                         f'Waiting for current batch to finish in {time_left}')

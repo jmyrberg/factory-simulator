@@ -87,31 +87,31 @@ class Operator(Base):
         self.events['arrive_at_work'].succeed()
         self.events['arrive_at_work'] = self.env.event()
 
-        yield from self.machine.switch_on()
+        self.env.process(self.machine.switch_on())
         yield (self.machine.events['switched_on']
                | self.machine.events['switched_idle'])
         # TODO: Program based on schedule
-        yield from self.machine.switch_program(1)
+        # yield from self.machine.switch_program(1)
         yield self.env.timeout(self.hours(3.5))
 
         self.log('Preparing for lunch...')
         # TODO: Operator shouldn't switch off in case of an issue?
         #       OR some other mechanism to achieve the same
-        yield from self.machine.switch_off()
+        self.env.process(self.machine.switch_off())
         yield self.machine.events['switched_off']
         lunch = self.env.process(self._lunch())
         yield lunch
         self.state = 'work'
 
         self.log('Continuing working...')
-        yield from self.machine.switch_on()
+        self.env.process(self.machine.switch_on())
         yield (self.machine.events['switched_on']
                | self.machine.events['switched_idle'])
-        yield from self.machine.switch_program(1)
+        # yield from self.machine.switch_program(1)
         yield self.env.timeout(self.hours(4))  # TODO: Randomize
 
         self.log('Preparing to go home...')
-        yield from self.machine.switch_off(force=False)
+        self.env.process(self.machine.switch_off(force=False))
         yield self.machine.events['switched_off']
         self.env.process(self._home())
 

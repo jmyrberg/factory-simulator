@@ -1,7 +1,7 @@
 """Interruptions."""
 
 
-class BaseCause:
+class BaseCause(BaseException):
 
     def __init__(self, name=None):
         self.name = name or ''
@@ -12,6 +12,13 @@ class BaseCause:
 
 class ManualSwitchOffCause(BaseCause):
     """Machine is switched off."""
+    def __init__(self, force=False, **kwargs):
+        super().__init__(kwargs.get('name'))
+        self.force = force
+
+
+class ProgramSwitchCause(BaseCause):
+    """Program is changed to something else."""
     def __init__(self, force=False, **kwargs):
         super().__init__(kwargs.get('name'))
         self.force = force

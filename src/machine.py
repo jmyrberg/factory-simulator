@@ -5,10 +5,11 @@ import arrow
 import simpy
 
 from src.base import Base
-from src.causes import BaseCause, ManualSwitchOffCause
+from src.causes import BaseCause, ManualSwitchOffCause, ProgramSwitchCause
 from src.consumable import Consumable
 from src.issues import ProductionIssue, OverheatIssue
 from src.program import Program
+from src.schedule import OperatingSchedule
 
 
 class Machine(Base):
@@ -27,6 +28,9 @@ class Machine(Base):
         self.ui = simpy.PriorityResource(env)
         self.state = 'off'
         self.states = ['off', 'idle', 'on', 'production', 'error']
+        self.state_change = simpy.PreemptiveResource(env)
+        self.schedule = OperatingSchedule(env, self)
+        self.production_interruption_ongoing = False
         self.programs = {
             0: None,
             1: Program(
@@ -42,6 +46,7 @@ class Machine(Base):
         self.program = self.programs[0]
 
         # Statistics
+        # TODO: Convert these to "Sensor" class or sth
         self.temperature = None
         self.room_temperature = None
 
@@ -52,12 +57,15 @@ class Machine(Base):
             'state_change': self.env.event(),
             'switching_program': self.env.event(),
             'switched_program': self.env.event(),
+            'switched_from_off_to_on': self.env.event(),
             **{f'switching_{s}': self.env.event() for s in self.states},
             **{f'switched_{s}': self.env.event() for s in self.states},
             'issue': self.env.event(),
             'issue_cleared': self.env.event(),
             'production_started': self.env.event(),
             'production_ended': self.env.event(),
+            'production_interruption': self.env.event(),
+            'production_interruption_ended': self.env.event(),
             'temperature_change': self.env.event()
         }
         self.procs = {
@@ -67,47 +75,82 @@ class Machine(Base):
                 self.env.process(self._temperature_monitor())
         }
 
-    def _set_state(self, state, *args, wait=False, **kwargs):
-        if self.state != state:
-            self._trigger_event(f'switching_{state}')
-            self._trigger_event('state_change', value=self.state)
-            yield self.env.timeout(10)  # TODO: Randomize/from-to dependent
+    def _set_state(self, state, *args, prio=0, wait=False, **kwargs):
+        # TODO: Get rid of on/idle split
+        with self.state_change.request(prio) as req:
+            try:
+                results = yield req | self.env.timeout(0)
 
-            func = getattr(self, f'_{state}')
-            self.procs[state] = self.env.process(func(*args, **kwargs))
-            if wait:
-                yield self.procs[state]
+                # If not immediately free, ignore state change request
+                if req not in results:
+                    self.debug('State change ongoing, not going '
+                               f'{self.state} -> {state}')
+                    return
 
-            self.state = state
-            self.debug(f'{state.upper()}')
-            self._trigger_event(f'switched_{state}')
+                if self.state != state:
+                    self._trigger_event(f'switching_{state}')
+                    self._trigger_event('state_change', value=self.state)
+                    # TODO: Randomize/from-to dependent
+                    yield self.env.timeout(10)
+
+                    func = getattr(self, f'_{state}')
+                    self.procs[state] = self.env.process(func(*args, **kwargs))
+                    if wait:
+                        yield self.procs[state]
+
+                    if self.state == 'off' and state in ('idle', 'on'):
+                        self._trigger_event('switched_from_off_to_on')
+
+                    self.state = state
+                    self.debug(f'{state.upper()}')
+                    self._trigger_event(f'switched_{state}')
+                else:
+                    self.warning(f'Trying to go from {self.state} to {state}')
+            except simpy.Interrupt as i:
+                self.warning(f'State change interrupted: {i.cause}')
 
     def _resume_state(self):
         func = getattr(self, f'_{self.state}')
         self.procs[self.state] = self.env.process(func())
+    
+    def restart(self):
+        yield self.env.process(self._set_state('off', prio=-20, wait=True))
+        self.env.process(self._set_state('on', prio=-5, wait=False))
 
     def clear_issue(self):
+        self.debug('Clearing issue')
         self.events['issue'] = self.env.event()
-        yield self.env.timeout(1)  # TODO: Randomize
-        self.events['issue_cleared'].succeed()
-        self.events['issue_cleared'] = self.env.event()
-        yield self.env.process(self._set_state('on'))
+        yield self.env.timeout(120)  # TODO: Randomize
+
+        # Reboot
+        yield self.env.timeout(1)
+        yield self.env.process(self.restart())
+        
+        self._trigger_event('issue_cleared')
+        self.debug('Issue cleared')
 
     def _trigger_issue(self, issue):
+        self.debug('Triggering issue')
         yield self.env.timeout(1)  # TODO: Randomize
 
         # Ensure operating mode is error
-        self.env.process(self._set_state('error'))
+        yield self.env.process(self.switch_program(0))
+        yield self.env.process(self._set_state('error', prio=-10))
 
         # Lock UI and trigger "issue" event
-        with self.ui.request(priority=-1) as req:
-            yield req
+        with (self.ui.request(priority=-10) as ui,
+                self.state_change.request(priority=-10) as state):
+            yield ui & state
             yield self.env.timeout(1)  # TODO: Randomize
             self.events['issue'].succeed(issue)
+            self.debug('Issue triggered, waiting clearance')
 
             # Wait for issue to be cleared by someone (=self.clear_issue())
             yield self.env.timeout(1)
-            yield self.events['issue_cleared']
+            try:
+                yield self.events['issue_cleared']
+            except simpy.Interrupt:
+                pass
 
     def _room_temperature(self):
         while True:
@@ -118,6 +161,8 @@ class Machine(Base):
                 season_avg = 18
             if 23 <= ts.hour or ts.hour <= 7:
                 hour_norm = -self.pnorm(1, 1)
+            else:
+                hour_norm = self.norm(0, 0.1)
 
             self.room_temperature = season_avg + hour_norm
             # self.debug(f'Room temperature: {self.room_temperature}')
@@ -174,8 +219,8 @@ class Machine(Base):
             noise = self.norm(0, duration_hours)
             self.temperature = max(self.room_temperature, new_temp) + noise
             # self.debug(f'{duration / 60 / 60:.2f} hours spent in "{state}"')
-            self.debug(f'Machine temperature: {self.temperature:.2f}')
-            yield self.env.timeout(60)
+            # self.debug(f'Machine temperature: {self.temperature:.2f}')
+            # yield self.env.timeout(60)
 
     def switch_on(self):
         yield self.env.timeout(1)
@@ -190,34 +235,50 @@ class Machine(Base):
             with self.ui.request() as req:
                 yield req
                 self.env.process(
-                    self._set_state('off', wait=True, force=force))
+                    self._set_state('off', prio=-1, wait=True, force=force))
 
-    def _switch_program(self, program):
+    def _switch_program(self, program, force=False):
         if self.programs[program] != self.program:
             self._trigger_event('switching_program')
-            self.program = self.programs[program]
-            yield self.env.timeout(10)  # TODO: Randomize + which possible?
-            self._trigger_event('switched_program')
 
-    def switch_program(self, program):
+            # Production must be stopped
+            if self.state == 'production':
+                self.env.process(self._interrupt_production(
+                    ProgramSwitchCause(force=force)))
+                # TODO: Find out why the following makes things break
+                yield self.events['production_ended']
+
+            yield self.env.timeout(10)  # TODO: Randomize + which possible?
+
+            self.program = self.programs[program]
+            self.env.process(self._set_state('on'))
+            self._trigger_event('switched_program')
+        else:
+            self.warning(f'Tried to switch to running program "{program}"')
+
+    def switch_program(self, program, force=False):
         if self.state != 'off':
             yield self.env.timeout(1)
             with self.ui.request() as req:
                 yield req
-                yield from self._switch_program(program)
+                yield from self._switch_program(program, force=force)
 
     def _interrupt_production(self, cause=None):
-        production_proc = self.procs.get('production')
-        if production_proc and production_proc.is_alive:
-            production_proc.interrupt(cause)
+        yield self.env.timeout(1)
+        if not self.production_interruption_ongoing:
+            production_proc = self.procs.get('production')
+            if production_proc and production_proc.is_alive:
+                production_proc.interrupt(cause)
 
     def _off(self, force=False):
         yield self.env.timeout(2)  # TODO: Randomize
 
         # If production is ongoing, interrupt gracefully (force=False)
         # or with force (force=True)
-        self._interrupt_production(ManualSwitchOffCause(force=force))
-        yield self.events['production_ended']
+        if self.state == 'production':
+            self.env.process(
+                self._interrupt_production(ManualSwitchOffCause(force=force)))
+            yield self.events['production_ended']
 
         # No production automatically when switched on
         if self.program is not None:
@@ -242,8 +303,13 @@ class Machine(Base):
     def _production(self):
         # TODO: Failure probability etc.
         # TODO: Look at what was originally asked for and implement
+        # TODO: Cleanup the triggers + prio handling with try etc.
         while True:
             self._trigger_event('production_started')
+            if self.program is None:
+                self.warning('In "production" mode with program "0"')
+                self.env.process(self._set_state('idle'))
+                return
             try:
                 # Run one batch of program
                 self.procs['program_run'] = (
@@ -251,11 +317,14 @@ class Machine(Base):
                 yield self.procs['program_run']
             except simpy.Interrupt as i:
                 self.warning(f'Production interrupted: {i}')
+                self._trigger_event('production_interruption')
+                self.production_interruption_ongoing = True
                 cause_or_issue = i.cause
 
                 # Causes are reasons to interrupt batch process
                 if isinstance(cause_or_issue, BaseCause):
                     self.procs['program_run'].interrupt(cause_or_issue)
+                    yield self.procs['program_run']
 
                 # Issues need to be resolved by operators but cause batch
                 # interruption, if the batch is still running
@@ -266,6 +335,10 @@ class Machine(Base):
                     raise i
                 self._trigger_event('production_ended')
                 break
+
+        yield self.env.process(self.switch_program(0))
+        yield self.env.process(self._set_state('idle'))
+        self.production_interruption_ongoing = False
 
     def _on(self):
         yield self.env.timeout(1)  # TODO: Randomize
