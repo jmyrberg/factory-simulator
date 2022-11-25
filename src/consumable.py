@@ -12,7 +12,7 @@ from src.base import Base
 
 class Consumable(Base):
 
-    def __init__(self, env, content='raw-material', capacity=100, init=None):
+    def __init__(self, env, content='raw-material', capacity=100.0, init=None):
         """Machine program."""
         super().__init__(env, name='Consumable')
         self.content = content
@@ -32,8 +32,8 @@ class Consumable(Base):
         pct_fill = amount / self.container.capacity
         yield self.env.timeout(self.hours(1 * pct_fill))
         yield self.container.put(fill_amount)
-        self.log(f'Filled {fill_amount}')
+        self.log(f'Filled {fill_amount} / {self.container.capacity}')
 
     def consume(self, amount):
         yield self.container.get(amount)
-        self.log(f'Left in {self.name} container: {self.container.level:.2f}')
+        self.log(f'Container level: {self.container.level:.2f}')

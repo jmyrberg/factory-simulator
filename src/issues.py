@@ -1,7 +1,7 @@
 """Interruptions."""
 
 
-class BaseIssue:
+class BaseIssue(BaseException):
     def __init__(self, name=None):
         self.name = name or ''
 

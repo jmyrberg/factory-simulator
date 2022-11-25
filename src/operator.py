@@ -1,7 +1,10 @@
 """Models operator."""
 
 
+from datetime import timedelta
+
 import arrow
+import simpy
 
 from src.base import Base
 from src.issues import LowConsumableLevelIssue, UnknownIssue
@@ -36,8 +39,8 @@ class Operator(Base):
         return self
 
     def _get_time_until_next_work_arrival(self):
-        ts = arrow.get(self.env.now).to('Europe/Helsinki')
-        if ts.weekday() in (5, 6):
+        ts = self.now_dt.to(self.tz)
+        if ts.weekday() in ():
             days = 7 - ts.weekday()
         else:
             days = 0 if ts.hour < 8 else 1
@@ -61,19 +64,24 @@ class Operator(Base):
         # TODO: React if no production output for a while
         while True:
             # Wait for issues...
-            issue = yield self.machine.events['issue']
-
-            # Issues can be seen only when at work
+            issue = yield self.machine.events['issue_occurred']
+            self.issue_ongoing = True
+      
             if self.state == 'work':
                 yield self.env.timeout(120)  # TODO: From distribution
             else:
                 yield self.events['arrive_at_work']
 
             self.log(f'Observed issue "{issue}" and attempting to fix...')
-            self.env.process(self._fix_issue(issue))
+            self.env.process(self._fix_issue(issue))  # TODO: Call repairman
 
             # Wait until issue is cleared
             yield self.machine.events['issue_cleared']
+
+            # TODO: Switch to event from repairman
+            if self.machine.state != 'production':
+                self.debug('Restarting production manually')
+                self.env.process(self.machine.start_production())
 
     def _home(self):
         self.log('Chilling at home...')
@@ -81,41 +89,40 @@ class Operator(Base):
         yield self.env.timeout(self._get_time_until_next_work_arrival())
         yield self.env.process(self._work())
 
+    def _start_production(self):
+        if self.machine.state != 'on':
+            self.env.process(self.machine.press_on())
+            yield self.machine.events['switched_on']
+        if self.machine.state == 'on':
+            self.env.process(self.machine.start_production())
+            yield self.machine.events['switched_production']
+
+    def _stop_production(self):
+        if self.machine.state != 'off':
+            self.env.process(self.machine.press_off(max_wait=120))
+            yield self.machine.events['switched_off']
+
     def _work(self):
         self.log('Working...')
         self.state = 'work'
-        self.events['arrive_at_work'].succeed()
-        self.events['arrive_at_work'] = self.env.event()
+        self._trigger_event('arrive_at_work')
+        yield from self._start_production()
 
-        self.env.process(self.machine.switch_on())
-        yield (self.machine.events['switched_on']
-               | self.machine.events['switched_idle'])
-        # TODO: Program based on schedule
-        # yield from self.machine.switch_program(1)
-        yield self.env.timeout(self.hours(3.5))
-
-        self.log('Preparing for lunch...')
-        # TODO: Operator shouldn't switch off in case of an issue?
-        #       OR some other mechanism to achieve the same
-        self.env.process(self.machine.switch_off())
-        yield self.machine.events['switched_off']
-        lunch = self.env.process(self._lunch())
-        yield lunch
-        self.state = 'work'
-
-        self.log('Continuing working...')
-        self.env.process(self.machine.switch_on())
-        yield (self.machine.events['switched_on']
-               | self.machine.events['switched_idle'])
-        # yield from self.machine.switch_program(1)
-        yield self.env.timeout(self.hours(4))  # TODO: Randomize
-
-        self.log('Preparing to go home...')
-        self.env.process(self.machine.switch_off(force=False))
-        yield self.machine.events['switched_off']
-        self.env.process(self._home())
+        # Go lunch or home
+        lunch = self.env.timeout(self.time_until_time('11:30'))
+        home = self.env.timeout(self.time_until_time('17:00'))
+        results = yield lunch | home
+        if lunch in results:
+            self.env.process(self._lunch())
+        elif home in results:
+            self.env.process(
+                self.machine.press_off(max_wait=4 * 60 * 60))
+            yield self.machine.events['switched_off']
+            self.env.process(self._home())
 
     def _lunch(self):
+        yield from self._stop_production()
         self.log('Having lunch...')
         self.state = 'lunch'
         yield self.env.timeout(self.minutes(30))  # TODO: Randomize
+        self.env.process(self._work())

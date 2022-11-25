@@ -16,9 +16,16 @@ class Program(Base):
         super().__init__(env, name='Program')
         self.bom = bom
         self.batch = {}
+        self.events = {
+            'program_started': self.env.event(),
+            'program_stopped': self.env.event(),
+            'program_interrupted': self.env.event(),
+            'program_issue': self.env.event()
+        }
 
     def run(self):
-        self.debug(f'Starting program {self.name}')
+        self._trigger_event('program_started')
+
         start_time = self.env.now
         duration = 60 * 15  # TODO: Sample
         self.batch = {
@@ -35,6 +42,7 @@ class Program(Base):
             expected_amount = duration * d['rate']
             if container.level < expected_amount:
                 self.warning('Will not produce due low consumable level')
+                self._trigger_event('program_issue')
                 raise simpy.Interrupt(LowConsumableLevelIssue(d['consumable']))
 
         # Run or interrupt
@@ -43,11 +51,12 @@ class Program(Base):
             yield self.env.timeout(duration)
             self.batch['status'] = 'success'
         except simpy.Interrupt as i:
-            self.warning(f'Program interrupted: {i}')
+            self.info(f'Program interrupted: {i.cause}')
+            self._trigger_event('program_interrupted')
             if isinstance(i.cause, BaseCause) and not i.cause.force:
                 time_left = start_time + duration - self.env.now
                 self.debug(
-                        f'Waiting for current batch to finish in {time_left}')
+                    f'Waiting for current batch to finish in {time_left:.0f}')
                 yield self.env.timeout(time_left)
                 self.batch['status'] = 'success'
             else:
@@ -57,10 +66,9 @@ class Program(Base):
         end_time = self.env.now
         self.batch['end_time'] = end_time
         time_spent = end_time - start_time
-        self.debug(f'Time spent on batch: {time_spent}')
         for name, d in self.bom.items():
             amount = time_spent * d['rate']
             self.debug(f'Consuming {amount:.2f} of {name}')
             yield from d['consumable'].consume(amount)
 
-        self.info('Batch done!')
+        self._trigger_event('program_stopped')

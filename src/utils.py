@@ -2,6 +2,19 @@
 
 
 import arrow
+import simpy
+
+
+def ignore_preempted(f):
+    def wrapper(*args, **kwargs):
+        try:
+            yield from f(*args, **kwargs)
+        except simpy.Interrupt as i:
+            if isinstance(i.cause, simpy.resources.resource.Preempted):
+                pass
+            else:
+                raise i
+    return wrapper
 
 
 def minutes(seconds):

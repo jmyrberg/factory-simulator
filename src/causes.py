@@ -17,6 +17,20 @@ class ManualSwitchOffCause(BaseCause):
         self.force = force
 
 
+class ManualStopProductionCause(BaseCause):
+    """Production is stopped manually."""
+    def __init__(self, force=False, **kwargs):
+        super().__init__(kwargs.get('name'))
+        self.force = force
+
+
+class AutomatedStopProductionCause(BaseCause):
+    """Production is stopped manually."""
+    def __init__(self, force=False, **kwargs):
+        super().__init__(kwargs.get('name'))
+        self.force = force
+
+
 class ProgramSwitchCause(BaseCause):
     """Program is changed to something else."""
     def __init__(self, force=False, **kwargs):

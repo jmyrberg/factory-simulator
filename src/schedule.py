@@ -37,13 +37,11 @@ class Block(Base):
         if self.is_active:
             self.warning('Tried to start an active block')
         else:
-            self.debug('Starting')
             self._trigger_event('start')
 
     def stop(self):
         """Deactivate block from outside."""
         if self.is_active:
-            self.debug('Stopping')
             self._trigger_event('stop')
         else:
             self.warning('Tried to stop an active block')
@@ -57,8 +55,6 @@ class Block(Base):
     def _run(self):
         while True:
             try:
-                self.debug('Waiting for block to start')
-
                 # Wait for start
                 yield self.events['start']
 
@@ -74,7 +70,6 @@ class Block(Base):
 
                 # Stop
                 yield self.events['stop']
-                self.debug('Set is_activate=False')
                 self.is_active = False
 
                 # Trigger block stop in schedule
@@ -103,16 +98,21 @@ class CronBlock(Block):
             self.next_end_dt = (
                 self.next_start_dt + timedelta(hours=self.duration_hours))
             timeout = self.time_until(self.next_start_dt)
-            self.debug(f'Next start time: {self.next_start_dt}')
             self.env.process(self.end_cond())
+
+            self.info(
+                'Cron scheduled for '
+                f'{self.next_start_dt.strftime("%Y-%m-%d %H:%M:%S")} - '
+                f'{self.next_end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+            )
+
             yield self.env.timeout(timeout)
             self.start()
 
     def end_cond(self):
         if self.next_end_dt is None:
             raise ValueError('End time cannot be determined')
-        self.debug(f'Next end time: {self.next_end_dt}')
-        self.debug(f'Will wait {self.time_until(self.next_end_dt)} seconds')
+
         yield self.env.timeout(self.time_until(self.next_end_dt))
         self.stop()
 
@@ -124,10 +124,10 @@ class OperatingSchedule(Base):
         self.machine = machine
         self.active_block = None
         self.blocks = [
-            CronBlock(self.env, '30 8 * * *', 3, 1),
+            CronBlock(self.env, '30 8 * * *', 3, 0),
             CronBlock(self.env, '30 11 * * *', 0.5, 0),
-            CronBlock(self.env, '00 12 * * *', 2, 1),
-            CronBlock(self.env, '00 14 * * *', 2, 1)
+            CronBlock(self.env, '00 12 * * *', 2, 0),
+            CronBlock(self.env, '00 14 * * *', 2, 0)
         ]
         for block in self.blocks:
             block.assign_schedule(self)
@@ -144,12 +144,12 @@ class OperatingSchedule(Base):
 
     def _on_machine_start(self):
         while True:
-            yield self.machine.events['switched_from_off_to_on']
-            yield self.machine.events['switched_on']
-            if self.active_block and self.active_block.program:
+            yield self.machine.events['switched_on_from_off']
+            if self.active_block and self.active_block.program is not None:
                 program = self.active_block.program
                 self.debug(f'Setting program "{program}" at machine start')
-                self.env.process(self.machine.switch_program(program))
+                self.env.process(
+                    self.machine._automated_program_switch(program))
 
     def _schedule(self):
         while True:
@@ -167,9 +167,9 @@ class OperatingSchedule(Base):
             program = self.active_block.program
             if program is None:
                 raise ValueError('Block is missing program')
-            self.env.process(self.machine.switch_program(program))
+            self.env.process(self.machine._automated_program_switch(program))
 
             yield self.events['block_finished']
             self.active_block = None
-            self.env.process(self.machine.switch_program(0))  # idle
+            self.env.process(self.machine._switch_on())
             self.debug(f'Schedule block {block} finished')

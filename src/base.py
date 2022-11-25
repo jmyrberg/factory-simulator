@@ -3,6 +3,8 @@
 
 import logging
 
+from datetime import timedelta
+
 import arrow
 import numpy as np
 
@@ -17,11 +19,10 @@ class Base:
         self.name = kwargs.get('name', 'Unknown')
         self.tz = 'Europe/Helsinki'
 
-    def _trigger_event(self, name, value=None, keep_on=False):
-        self.debug(f'Triggering event {name}')
+    def _trigger_event(self, name, value=None):
+        self.debug(f'Triggered "{name}"')
         self.events[name].succeed(value)
-        if not keep_on:
-            self.events[name] = self.env.event()
+        self.events[name] = self.env.event()
 
     def debug(self, message):
         self.log(message, level='debug')
@@ -53,8 +54,38 @@ class Base:
         return self, self.hours(24 * seconds)
 
     @property
+    def day(self):
+        return self.now_dt.day
+
+    @property
+    def dow(self):
+        return self.now_dt.weekday()
+
+    @property
+    def hour(self):
+        return self.now_dt.hour
+
+    @property
+    def minute(self):
+        return self.now_dt.minute
+
+    @property
     def now_dt(self):
         return arrow.get(self.env.now).to(self.tz)
+
+    def time_until_time(self, clock_str):
+        hour, minutes = clock_str.split(':')
+        if (self.hour, self.minute) < (int(hour), int(minutes)):
+            days = 0
+        else:
+            days = 1
+        target_dt = self.now_dt.replace(
+            hour=int(hour),
+            minute=int(minutes),
+            second=0,
+            microsecond=0
+        ) + timedelta(days=days)
+        return self.time_until(target_dt)
 
     def time_until(self, target_dt):
         if target_dt < self.now_dt:
