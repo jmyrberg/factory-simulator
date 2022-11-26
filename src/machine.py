@@ -31,7 +31,7 @@ class Machine(Base):
         self.execute = simpy.PreemptiveResource(env)  # commands
         self.state = 'off'
         self.states = ['off', 'on', 'production', 'error']
-        self.schedule = None  # OperatingSchedule(env, self)
+        self.schedule = OperatingSchedule(env, self)
         self.programs = {
             0: Program(
                 env,
@@ -168,7 +168,8 @@ class Machine(Base):
             # yield self.env.timeout(60)
 
     @ignore_preempted
-    def _switch_on(self, require_executor=True, priority=0, max_wait=0):
+    def _switch_on(
+            self, require_executor=True, priority=0, max_wait=0, cause=None):
         """Change machine state to "on".
 
         State changes:
@@ -181,11 +182,12 @@ class Machine(Base):
         - Change settings, e.g. program or schedule
         """
         yield self.env.timeout(1)
-        if self.state not in ['off', 'production']:
+        if self.state == 'on':
             self.warning(f'Cant go from state "{self.state}" to "on"')
-        elif self.state == 'on':
-            self.warning('Switching from "on" to "on"')
             self._trigger_event('switched_on')
+            return
+        elif self.state not in ['off', 'production']:
+            self.warning(f'Cant go from state "{self.state}" to "on"')
 
         with self.execute.request(priority=priority) as executor:
             results = yield executor | self.env.timeout(max_wait)
@@ -205,19 +207,24 @@ class Machine(Base):
 
                 # Stop production gracefully
                 if not self.production_interruption_ongoing:
-                    cause = ManualSwitchOffCause(force=False)
+                    if cause is None:
+                        cause = ManualSwitchOffCause(force=False)
                     self.env.process(self._interrupt_production(
                         cause, require_executor=False))
-                    yield self.events['production_stopped']
+
+                self.debug('Waiting for production stopped at "switch_on"')
+                yield self.events['production_stopped']
 
                 yield self.env.timeout(1)
                 self.state = 'on'
                 self._trigger_event('switched_on')
 
-    def press_on(self):
+        self.debug('Released executor at "switch_on"')
+
+    def press_on(self, priority=-10):
         yield self.env.timeout(1)
         self._trigger_event('on_button_pressed')
-        yield from self._switch_on()
+        self.env.process(self._switch_on(priority=priority))
 
     @ignore_preempted
     def _switch_off(self, emergency=False, require_executor=True,
@@ -278,10 +285,11 @@ class Machine(Base):
                 self.state = 'off'
                 self._trigger_event('switched_off')
 
-    def press_off(self, emergency=False, priority=-1, max_wait=120):
+    def press_off(self, emergency=False, priority=-10, max_wait=120):
+        yield self.env.timeout(1)
         self._trigger_event('off_button_pressed')
-        yield from self._switch_off(
-            emergency=emergency, priority=priority, max_wait=max_wait)
+        self.env.process(self._switch_off(
+            emergency=emergency, priority=priority, max_wait=max_wait))
 
     def _switch_production(
             self, require_executor=True, priority=0, max_wait=0):
@@ -317,7 +325,8 @@ class Machine(Base):
             self._trigger_event('switched_production')
 
     @ignore_preempted
-    def _switch_program(self, program, require_executor=True, max_wait=10):
+    def _switch_program(
+            self, program, require_executor=True, priority=0, max_wait=10):
         """Switch program on machine
 
         State:
@@ -337,7 +346,7 @@ class Machine(Base):
                 'stop production first')
             return
 
-        with self.execute.request() as executor:
+        with self.execute.request(priority=priority) as executor:
             if require_executor:
                 results = yield executor | self.env.timeout(max_wait)
                 if executor not in results:
@@ -355,36 +364,54 @@ class Machine(Base):
             self._trigger_event('switched_program')
 
     @ignore_preempted
-    def _automated_program_switch(self, program, force=False):
+    def _automated_program_switch(
+            self, program, priority=-2, force=False, max_wait=300):
         """Switch production program automatically."""
         if program not in self.programs:
             self.error(f'Program "{program}" does not exist, returning')
             return
-        if self.state == 'error':
+        elif self.state == 'error':
             self.warning('Automated program not possible in "error" state')
-
-        self._trigger_event('switching_program_automatically')
-
-        if self.state == 'error':
-            self.warning('Ignoring schedule in "error" state, returning')
+            return
+        elif self.state == 'off':
+            self.warning('Automated program not possible in "off" state')
             return
 
         yield self.env.timeout(1)
 
-        cause = AutomatedStopProductionCause(force=force)
-        self.env.process(self._interrupt_production(cause))
-        yield self.events['production_stopped']
+        with self.ui.request(priority=priority) as ui:
+            results = yield ui | self.env.timeout(max_wait)
+            if ui not in results:
+                self.debug(
+                    'UI is not responsive, will not change program')
+                return
 
-        self.env.process(self._switch_on(max_wait=120))
-        yield self.events['switched_on']
+            with self.execute.request(priority=priority) as executor:
+                results = yield executor | self.env.timeout(max_wait)
+                if executor not in results:
+                    self.debug(
+                        'Execution ongoing, will not change program and '
+                        'start production')
+                    return
 
-        self.env.process(self._switch_program(program, max_wait=120))
-        yield self.events['switched_program']
+                self._trigger_event('switching_program_automatically')
 
-        self.env.process(self._switch_production())
-        yield self.events['production_started']
+                if self.state != 'on':
+                    cause = AutomatedStopProductionCause(force=force)
+                    self.env.process(self._switch_on(
+                        require_executor=False,
+                        cause=cause))
+                    yield self.events['switched_on']
 
-        self._trigger_event('switched_program_automatically')
+                self.env.process(self._switch_program(
+                    program, require_executor=False))
+                yield self.events['switched_program']
+
+                self.env.process(self._switch_production(
+                    require_executor=False))
+                yield self.events['production_started']
+
+                self._trigger_event('switched_program_automatically')
 
     @ignore_preempted
     def switch_program(self, program, priority=-1, max_wait=60):
@@ -403,7 +430,7 @@ class Machine(Base):
     def start_production(self, program=None, max_wait=60):
         yield self.env.timeout(1)
         with self.ui.request() as ui:
-            results = yield ui | self.env.timeout(0)
+            results = yield ui | self.env.timeout(max_wait)
             if ui not in results:
                 self.debug(
                     'UI is not responsive, will not try to go "production"')
@@ -415,10 +442,10 @@ class Machine(Base):
 
             self.env.process(self._switch_production())
 
-    def stop_production(self, force=False):
+    def stop_production(self, force=False, max_wait=60):
         yield self.env.timeout(1)
         with self.ui.request() as ui:
-            results = yield ui | self.env.timeout(0)
+            results = yield ui | self.env.timeout(max_wait)
             if ui not in results:
                 self.debug(
                     'UI is not responsive, cannot try to stop production')
@@ -428,7 +455,7 @@ class Machine(Base):
             self.env.process(self._interrupt_production(cause))
 
     def _interrupt_production(
-            self, cause=None, require_executor=True, priority=0):
+            self, cause=None, require_executor=True, priority=0, max_wait=0):
         if self.production_interruption_ongoing:
             self.warning('Production interruption already ongoing, returning')
             return
@@ -436,7 +463,7 @@ class Machine(Base):
         yield self.env.timeout(1)
         with self.execute.request(priority=priority) as executor:
             if require_executor:
-                results = yield executor | self.env.timeout(120)
+                results = yield executor | self.env.timeout(max_wait)
                 if executor not in results:
                     self.debug('Execution ongoing, wont interrupt production')
                     return
@@ -497,9 +524,6 @@ class Machine(Base):
                     raise i
                 self._trigger_event('production_stopped')
                 break
-
-        if self.state == 'production':
-            yield self.env.process(self._switch_on())
 
         self.production_interruption_ongoing = False
 

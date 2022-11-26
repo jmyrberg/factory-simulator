@@ -75,10 +75,10 @@ class Base:
 
     def time_until_time(self, clock_str):
         hour, minutes = clock_str.split(':')
-        if (self.hour, self.minute) < (int(hour), int(minutes)):
-            days = 0
-        else:
+        if self.time_passed_today(clock_str):
             days = 1
+        else:
+            days = 0
         target_dt = self.now_dt.replace(
             hour=int(hour),
             minute=int(minutes),
@@ -86,6 +86,15 @@ class Base:
             microsecond=0
         ) + timedelta(days=days)
         return self.time_until(target_dt)
+
+    def time_passed_today(self, clock_str):
+        hour, minutes = clock_str.split(':')
+        if self.hour < int(hour):
+            return False
+        elif self.hour == int(hour) and self.minute < int(minutes):
+            return False
+        else:
+            return True
 
     def time_until(self, target_dt):
         if target_dt < self.now_dt:

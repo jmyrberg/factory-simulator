@@ -96,7 +96,8 @@ class CronBlock(Block):
         while True:
             self.next_start_dt = cron_iter.get_next(datetime)
             self.next_end_dt = (
-                self.next_start_dt + timedelta(hours=self.duration_hours))
+                self.next_start_dt
+                + timedelta(hours=self.duration_hours, seconds=-1))
             timeout = self.time_until(self.next_start_dt)
             self.env.process(self.end_cond())
 
@@ -119,7 +120,7 @@ class CronBlock(Block):
 
 class OperatingSchedule(Base):
     """Controls the "program" -attribute of a machine"""
-    def __init__(self, env, machine, blocks=None):
+    def __init__(self, env, machine, blocks=None, disabled=False):
         super().__init__(env, name='OperatingSchedule')
         self.machine = machine
         self.active_block = None
@@ -132,6 +133,7 @@ class OperatingSchedule(Base):
         for block in self.blocks:
             block.assign_schedule(self)
 
+        self.disabled = disabled
         self.procs = {
             'schedule': self.env.process(self._schedule()),
             'on_machine_start': self.env.process(self._on_machine_start())
@@ -145,7 +147,9 @@ class OperatingSchedule(Base):
     def _on_machine_start(self):
         while True:
             yield self.machine.events['switched_on_from_off']
-            if self.active_block and self.active_block.program is not None:
+            if self.disabled:
+                pass
+            elif self.active_block and self.active_block.program is not None:
                 program = self.active_block.program
                 self.debug(f'Setting program "{program}" at machine start')
                 self.env.process(
@@ -167,9 +171,15 @@ class OperatingSchedule(Base):
             program = self.active_block.program
             if program is None:
                 raise ValueError('Block is missing program')
-            self.env.process(self.machine._automated_program_switch(program))
+            if (not self.disabled
+                    and self.machine.state not in ['off', 'error']):
+                self.env.process(
+                    self.machine._automated_program_switch(program))
 
             yield self.events['block_finished']
             self.active_block = None
-            self.env.process(self.machine._switch_on())
+            if (not self.disabled
+                    and self.machine.state not in ['off', 'on', 'error']):
+                self.debug('Switching to on')
+                self.env.process(self.machine._switch_on(priority=-2))
             self.debug(f'Schedule block {block} finished')

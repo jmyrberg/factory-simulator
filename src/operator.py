@@ -8,6 +8,7 @@ import simpy
 
 from src.base import Base
 from src.issues import LowConsumableLevelIssue, UnknownIssue
+from src.utils import ignore_preempted
 
 
 class Operator(Base):
@@ -25,6 +26,7 @@ class Operator(Base):
         super().__init__(env, name='Operator')
         self.state = 'home'
         self.machine = None
+        self.can_leave = simpy.PreemptiveResource(env)
 
         self.data = []
         self.events = {
@@ -62,67 +64,81 @@ class Operator(Base):
 
     def _monitor_issues(self):
         # TODO: React if no production output for a while
+        # TODO: Have this process only running when at work
+        yield self.events['arrive_at_work']
         while True:
             # Wait for issues...
+            self.debug('Waiting for issues')
             issue = yield self.machine.events['issue_occurred']
+            self.debug('Issue ongoing, but not noticed yet')
             self.issue_ongoing = True
-      
+        
             if self.state == 'work':
+                self.debug('At work, will take time before issue noticed')
                 yield self.env.timeout(120)  # TODO: From distribution
             else:
+                self.debug(
+                    'Will wait until arrival at work to notice the issue')
                 yield self.events['arrive_at_work']
 
-            self.log(f'Observed issue "{issue}" and attempting to fix...')
-            self.env.process(self._fix_issue(issue))  # TODO: Call repairman
+            with self.can_leave.request() as req:
+                yield req
+                self.log(f'Observed issue "{issue}" and attempting to fix...')
+                self.env.process(self._fix_issue(issue))  # TODO: Call repairman
 
-            # Wait until issue is cleared
-            yield self.machine.events['issue_cleared']
+                # Wait until issue is cleared
+                yield self.machine.events['issue_cleared']
 
-            # TODO: Switch to event from repairman
-            if self.machine.state != 'production':
-                self.debug('Restarting production manually')
-                self.env.process(self.machine.start_production())
+                # TODO: Switch to event from repairman
+                if self.machine.state != 'production':
+                    self.debug('Restarting production manually')
+                    self.env.process(self.machine.start_production())
 
     def _home(self):
         self.log('Chilling at home...')
         self.state = 'home'
         yield self.env.timeout(self._get_time_until_next_work_arrival())
-        yield self.env.process(self._work())
-
-    def _start_production(self):
-        if self.machine.state != 'on':
-            self.env.process(self.machine.press_on())
-            yield self.machine.events['switched_on']
-        if self.machine.state == 'on':
-            self.env.process(self.machine.start_production())
-            yield self.machine.events['switched_production']
-
-    def _stop_production(self):
-        if self.machine.state != 'off':
-            self.env.process(self.machine.press_off(max_wait=120))
-            yield self.machine.events['switched_off']
+        self.env.process(self._work())
 
     def _work(self):
+        # TODO: Match schedule + operator actions (priority etc.)
+        # Which overrides which?
         self.log('Working...')
         self.state = 'work'
         self._trigger_event('arrive_at_work')
-        yield from self._start_production()
+        self.env.process(self.machine.press_on())
+        yield self.machine.events['switched_on']
 
         # Go lunch or home
         lunch = self.env.timeout(self.time_until_time('11:30'))
         home = self.env.timeout(self.time_until_time('17:00'))
         results = yield lunch | home
+        self.debug('Lunch or home time')
+
         if lunch in results:
             self.env.process(self._lunch())
         elif home in results:
-            self.env.process(
-                self.machine.press_off(max_wait=4 * 60 * 60))
+            # TODO: Why this part is run twice??
+            self.env.process(self.machine.press_off())
             yield self.machine.events['switched_off']
             self.env.process(self._home())
 
     def _lunch(self):
-        yield from self._stop_production()
-        self.log('Having lunch...')
-        self.state = 'lunch'
-        yield self.env.timeout(self.minutes(30))  # TODO: Randomize
-        self.env.process(self._work())
+        if self.time_passed_today('14:00'):
+            self.debug('No lunch today, it seems :(')
+            return
+
+        with self.can_leave.request() as can_leave:
+            self.debug('Waiting till can leave for lunch')
+            lunch_time_over = self.env.timeout(self.time_until_time('14:00'))
+            results = yield can_leave | lunch_time_over
+            if lunch_time_over in results:
+                self.debug('No lunch today, it seems :(')
+                return
+
+            self.env.process(self.machine.press_off())
+            yield self.machine.events['switched_off']
+            self.log('Having lunch...')
+            self.state = 'lunch'
+            yield self.env.timeout(self.minutes(30))  # TODO: Randomize
+            self.env.process(self._work())

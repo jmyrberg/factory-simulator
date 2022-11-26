@@ -11,7 +11,8 @@ def ignore_preempted(f):
             yield from f(*args, **kwargs)
         except simpy.Interrupt as i:
             if isinstance(i.cause, simpy.resources.resource.Preempted):
-                pass
+                self = args[0]
+                self.info(f'INTERRUPTED: {self.name} - {f.__name__})')
             else:
                 raise i
     return wrapper
