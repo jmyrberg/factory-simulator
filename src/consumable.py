@@ -8,19 +8,20 @@ import simpy
 import uuid
 
 from src.base import Base
+from src.utils import with_resource_monitor
 
 
 class Consumable(Base):
 
     def __init__(self, env, content='raw-material', capacity=100.0, init=None):
         """Machine program."""
-        super().__init__(env, name='Consumable')
+        super().__init__(env, name=f'Consumable({content})')
         self.content = content
-        self.container = simpy.Container(
-            env,
+        self.container = with_resource_monitor(simpy.Container(
+            env=env,
             capacity=capacity,
             init=init or capacity
-        )
+        ), 'container', self)
 
     def fill_full(self):
         fill_amount = self.container.capacity - self.container.level
@@ -30,7 +31,7 @@ class Consumable(Base):
         free = self.container.capacity - self.container.level
         fill_amount = free if amount > free else amount
         pct_fill = amount / self.container.capacity
-        yield self.env.timeout(self.hours(1 * pct_fill))
+        yield self.env.timeout(self.hours(2 * pct_fill))
         yield self.container.put(fill_amount)
         self.log(f'Filled {fill_amount} / {self.container.capacity}')
 

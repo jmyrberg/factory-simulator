@@ -9,9 +9,14 @@ import simpy
 from croniter import croniter
 
 from src.base import Base
+from src.utils import Monitor
 
 
 class Block(Base):
+
+    is_active = Monitor()
+    program = Monitor()
+
     def __init__(self, env, program=None, name=None):
         super().__init__(env, name=name or 'Block')
         self.program = program
@@ -37,12 +42,12 @@ class Block(Base):
         if self.is_active:
             self.warning('Tried to start an active block')
         else:
-            self._trigger_event('start')
+            self.emit('start')
 
     def stop(self):
         """Deactivate block from outside."""
         if self.is_active:
-            self._trigger_event('stop')
+            self.emit('stop')
         else:
             self.warning('Tried to stop an active block')
 
@@ -59,12 +64,12 @@ class Block(Base):
                 yield self.events['start']
 
                 # Start
-                self._trigger_event('started')
+                self.emit('started')
                 self.is_active = True
 
                 # Trigger block activation in schedule
                 if self.schedule:
-                    self.schedule._trigger_event('block_started', self)
+                    self.schedule.emit('block_started', self)
                 else:
                     self.warning('No schedule to trigger')
 
@@ -73,23 +78,28 @@ class Block(Base):
                 self.is_active = False
 
                 # Trigger block stop in schedule
-                self.schedule._trigger_event('block_finished', self)
+                self.schedule.emit('block_finished', self)
             except simpy.Interrupt:  # = delete
                 self.is_active = False
                 # Trigger block stop in schedule
-                self.schedule._trigger_event('block_deleted', self)
+                self.schedule.emit('block_deleted', self)
                 break
 
 
 class CronBlock(Block):
+
     def __init__(self, env, start_expr, duration_hours, program=None):
-        super().__init__(env, program, name=f'CronBlock({start_expr})')
+        name = f'CronBlock({start_expr}, {program})'
+        super().__init__(env, program, name=name)
         self.start_expr = start_expr
         self.duration_hours = duration_hours
         self.next_start_dt = None
         self.next_end_dt = None
 
         self.env.process(self.start_cond())
+
+    def __repr__(self):
+        return self.name
 
     def start_cond(self):
         cron_iter = croniter(self.start_expr, self.now_dt.datetime)
@@ -119,6 +129,9 @@ class CronBlock(Block):
 
 
 class OperatingSchedule(Base):
+
+    active_block = Monitor()
+
     """Controls the "program" -attribute of a machine"""
     def __init__(self, env, machine, blocks=None, disabled=False):
         super().__init__(env, name='OperatingSchedule')
@@ -127,7 +140,7 @@ class OperatingSchedule(Base):
         self.blocks = [
             CronBlock(self.env, '30 8 * * *', 3, 0),
             CronBlock(self.env, '30 11 * * *', 0.5, 0),
-            CronBlock(self.env, '00 12 * * *', 2, 0),
+            CronBlock(self.env, '00 12 * * *', 2, 1),
             CronBlock(self.env, '00 14 * * *', 2, 0)
         ]
         for block in self.blocks:

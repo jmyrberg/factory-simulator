@@ -11,10 +11,16 @@ from src.consumable import Consumable
 from src.issues import ProductionIssue, OverheatIssue
 from src.program import Program
 from src.schedule import OperatingSchedule
-from src.utils import ignore_preempted
+from src.utils import ignore_preempted, Monitor, with_resource_monitor
 
 
 class Machine(Base):
+
+    state = Monitor()
+    program = Monitor()
+    production_interruption_ongoing = Monitor()
+    temperature = Monitor('numerical')
+    room_temperature = Monitor('numerical')
 
     def __init__(self, env):
         """Machine in a factory.
@@ -26,9 +32,14 @@ class Machine(Base):
             on -> error: 
         """
         super().__init__(env, name='Machine')
-        # Resources
-        self.ui = simpy.PreemptiveResource(env)  # user actions
-        self.execute = simpy.PreemptiveResource(env)  # commands
+        self.ui = with_resource_monitor(  # user actions
+            simpy.PreemptiveResource(env),
+            'ui', self
+        )
+        self.execute = with_resource_monitor(  # commands
+            simpy.PreemptiveResource(env),
+            'execute', self
+        )
         self.state = 'off'
         self.states = ['off', 'on', 'production', 'error']
         self.schedule = OperatingSchedule(env, self)
@@ -37,8 +48,17 @@ class Machine(Base):
                 env,
                 bom={
                     'raw-material': {
-                        'consumable': Consumable(env),
+                        'consumable': Consumable(env, 'raw-material-0'),
                         'rate': 5 / (60 * 15)  # = 5 units per 15 mins
+                    }
+                }
+            ),
+            1: Program(
+                env,
+                bom={
+                    'raw-material': {
+                        'consumable': Consumable(env, 'raw-material-1'),
+                        'rate': 2.5 / (60 * 15)
                     }
                 }
             )
@@ -51,7 +71,6 @@ class Machine(Base):
         self.temperature = None
         self.room_temperature = None
 
-        self.data = {}
         self.events = {
             # Program
             'switching_program': self.env.event(),
@@ -91,29 +110,40 @@ class Machine(Base):
             'temperature_change': self.env.event()
         }
         self.procs = {
-            'room_temperature': self.env.process(self._room_temperature()),
-            'temperature': self.env.process(self._temperature()),
+            'room_temperature': self.env.process(self._room_temperature_proc()),
+            'temperature': self.env.process(self._temperature_proc()),
             'temperature_monitor':
-                self.env.process(self._temperature_monitor())
+                self.env.process(self._temperature_monitor_proc())
         }
 
-    def _room_temperature(self):
+    def _room_temperature_proc(self):
+        hourly_delta = [
+            -2.5, -2.75, -3, -2.5, -2, -1.5, -1, 0,           # 0-7
+            1, 2, 3, 3.1, 3.25, 3.5, 3.1, 2.5,  # 8-15
+            2, 1, 0, -1, -1.5, -1.75, -2, -2.25,         # 16-23
+        ]
         while True:
             ts = arrow.get(self.env.now).to('Europe/Helsinki')
             if 4 <= ts.month and ts.month <= 8:
                 season_avg = 22
             else:
                 season_avg = 18
-            if 23 <= ts.hour or ts.hour <= 7:
-                hour_norm = -self.pnorm(1, 1)
-            else:
-                hour_norm = self.norm(0, 0.1)
 
-            self.room_temperature = season_avg + hour_norm
+            delta_hour = hourly_delta[ts.hour] + self.norm(0, .5)
+
+            # Follow machine temp as well
+            delta_machine = 0
+            if self.temperature is not None:
+                delta_machine = (
+                    (self.temperature - self.room_temperature)
+                    / 5
+                )
+
+            self.room_temperature = season_avg + delta_hour + delta_machine
             # self.debug(f'Room temperature: {self.room_temperature}')
             yield self.env.timeout(60)
 
-    def _temperature_monitor(self):
+    def _temperature_monitor_proc(self):
         yield self.env.timeout(2)
         while True:
             yield self.events['temperature_change']
@@ -123,7 +153,7 @@ class Machine(Base):
             elif self.temperature > 70:
                 self.warning(f'Temperature very high: {self.temperature}')
 
-    def _temperature(self):
+    def _temperature_proc(self):
         # TODO: Sometime very high temperatures (check Kaggle for reference)
         # TODO: Overheat monitoring process
         # TODO: Cleanup
@@ -136,7 +166,7 @@ class Machine(Base):
             'production': 10,
             'on': 1,
             'idle': -3,
-            'off': -5,
+            'off': -3,
             'error': -5
         }
         while True:
@@ -157,7 +187,7 @@ class Machine(Base):
             # The further away from room temperature, the faster the cooling
             delta_room = (
                 (self.room_temperature - self.temperature)
-                / 20 * duration_hours
+                / 5 * duration_hours
             )  # = ~5 degrees in an hour if difference is 100
             delta_mode = change_per_hour[state] * duration_hours
             new_temp = self.temperature + delta_mode + delta_room
@@ -184,7 +214,7 @@ class Machine(Base):
         yield self.env.timeout(1)
         if self.state == 'on':
             self.warning(f'Cant go from state "{self.state}" to "on"')
-            self._trigger_event('switched_on')
+            self.emit('switched_on')
             return
         elif self.state not in ['off', 'production']:
             self.warning(f'Cant go from state "{self.state}" to "on"')
@@ -197,13 +227,13 @@ class Machine(Base):
 
             # Turn machine on
             if self.state == 'off':
-                self._trigger_event('switching_on')
+                self.emit('switching_on')
                 yield self.env.timeout(1)
                 self.state = 'on'
-                self._trigger_event('switched_on')
-                self._trigger_event('switched_on_from_off')
+                self.emit('switched_on')
+                self.emit('switched_on_from_off')
             elif self.state == 'production':
-                self._trigger_event('switching_on')
+                self.emit('switching_on')
 
                 # Stop production gracefully
                 if not self.production_interruption_ongoing:
@@ -217,13 +247,13 @@ class Machine(Base):
 
                 yield self.env.timeout(1)
                 self.state = 'on'
-                self._trigger_event('switched_on')
+                self.emit('switched_on')
 
         self.debug('Released executor at "switch_on"')
 
     def press_on(self, priority=-10):
         yield self.env.timeout(1)
-        self._trigger_event('on_button_pressed')
+        self.emit('on_button_pressed')
         self.env.process(self._switch_on(priority=priority))
 
     @ignore_preempted
@@ -240,7 +270,7 @@ class Machine(Base):
         yield self.env.timeout(1)
         if self.state == 'off':
             self.warning(f'Cant go from state "{self.state}" to "off"')
-            self._trigger_event('switched_off')
+            self.emit('switched_off')
             return
 
         priority = -9999 if emergency else priority
@@ -256,12 +286,12 @@ class Machine(Base):
 
             # Turn machine off
             if self.state == 'on':
-                self._trigger_event('switching_off')
+                self.emit('switching_off')
                 yield self.env.timeout(1)
                 self.state = 'off'
-                self._trigger_event('switched_off')
+                self.emit('switched_off')
             elif self.state == 'production':
-                self._trigger_event('switching_off')
+                self.emit('switching_off')
 
                 # Try interrupt production
                 cause = ManualSwitchOffCause(force=emergency)
@@ -272,9 +302,9 @@ class Machine(Base):
 
                 yield self.env.timeout(1)
                 self.state = 'off'
-                self._trigger_event('switched_off')
+                self.emit('switched_off')
             elif self.state == 'error':
-                self._trigger_event('switching_off')
+                self.emit('switching_off')
 
                 # Try interrupt production
                 cause = ManualSwitchOffCause(force=True)
@@ -283,11 +313,11 @@ class Machine(Base):
 
                 yield self.env.timeout(1)
                 self.state = 'off'
-                self._trigger_event('switched_off')
+                self.emit('switched_off')
 
     def press_off(self, emergency=False, priority=-10, max_wait=120):
         yield self.env.timeout(1)
-        self._trigger_event('off_button_pressed')
+        self.emit('off_button_pressed')
         self.env.process(self._switch_off(
             emergency=emergency, priority=priority, max_wait=max_wait))
 
@@ -318,11 +348,11 @@ class Machine(Base):
                     'Skipping executor waiting at switching production')
 
             # Start production
-            self._trigger_event('switching_production')
+            self.emit('switching_production')
             yield self.env.timeout(1)
             self.procs['production'] = self.env.process(self._production())
             self.state = 'production'
-            self._trigger_event('switched_production')
+            self.emit('switched_production')
 
     @ignore_preempted
     def _switch_program(
@@ -358,10 +388,10 @@ class Machine(Base):
                     'Skipping executor waiting at switching program')
 
             assert self.state != 'production', 'Something went wrong :('
-            self._trigger_event('switching_program')
+            self.emit('switching_program')
             yield self.env.timeout(1)
             self.program = program
-            self._trigger_event('switched_program')
+            self.emit('switched_program')
 
     @ignore_preempted
     def _automated_program_switch(
@@ -394,7 +424,7 @@ class Machine(Base):
                         'start production')
                     return
 
-                self._trigger_event('switching_program_automatically')
+                self.emit('switching_program_automatically')
 
                 if self.state != 'on':
                     cause = AutomatedStopProductionCause(force=force)
@@ -411,7 +441,7 @@ class Machine(Base):
                     require_executor=False))
                 yield self.events['production_started']
 
-                self._trigger_event('switched_program_automatically')
+                self.emit('switched_program_automatically')
 
     @ignore_preempted
     def switch_program(self, program, priority=-1, max_wait=60):
@@ -497,7 +527,7 @@ class Machine(Base):
             return
 
         while True:
-            self._trigger_event('production_started')
+            self.emit('production_started')
             try:
                 # Run one batch of program
                 self.procs['program_run'] = (
@@ -505,7 +535,7 @@ class Machine(Base):
                 yield self.procs['program_run']
             except simpy.Interrupt as i:
                 self.info(f'Production interrupted: {i}')
-                self._trigger_event('production_interrupted')
+                self.emit('production_interrupted')
                 self.production_interruption_ongoing = True
                 cause_or_issue = i.cause
 
@@ -519,10 +549,10 @@ class Machine(Base):
                 elif isinstance(cause_or_issue, ProductionIssue):
                     yield self.env.process(self._switch_error(cause_or_issue))
                     # FIXME: Are we sure that production can't be in progress?
-                    self._trigger_event('production_stopped_from_error')
+                    self.emit('production_stopped_from_error')
                 else:
                     raise i
-                self._trigger_event('production_stopped')
+                self.emit('production_stopped')
                 break
 
         self.production_interruption_ongoing = False
@@ -541,8 +571,8 @@ class Machine(Base):
             self.warning(f'Cant go from state "{self.state}" to "error"')
             return
 
-        self._trigger_event('issue_occurred', issue)
-        self._trigger_event('switching_error')
+        self.emit('issue_occurred', issue)
+        self.emit('switching_error')
         with self.ui.request(priority=-9999) as ui:
             yield ui  # Should get immediately based on priority
 
@@ -551,7 +581,7 @@ class Machine(Base):
 
                 yield self.env.timeout(1)
                 self.state = 'error'
-                self._trigger_event('switched_error')
+                self.emit('switched_error')
 
                 # Try stop production
                 if self.state == 'production':
@@ -585,10 +615,10 @@ class Machine(Base):
     def clear_issue(self):
         """Clear an existing issue."""
         if self.state == 'error':
-            self._trigger_event('clearing_issue')
+            self.emit('clearing_issue')
             yield self.env.timeout(10)
             yield self.env.process(self.reboot())
-            self._trigger_event('issue_cleared')
+            self.emit('issue_cleared')
         else:
             self.warning('No issues to be cleared')
             return

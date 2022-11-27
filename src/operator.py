@@ -8,10 +8,13 @@ import simpy
 
 from src.base import Base
 from src.issues import LowConsumableLevelIssue, UnknownIssue
-from src.utils import ignore_preempted
+from src.utils import ignore_preempted, Monitor, with_resource_monitor
 
 
 class Operator(Base):
+
+    state = Monitor()
+    issue_ongoing = Monitor()
 
     def __init__(self, env):
         """Models an operator at the factory.
@@ -26,9 +29,12 @@ class Operator(Base):
         super().__init__(env, name='Operator')
         self.state = 'home'
         self.machine = None
-        self.can_leave = simpy.PreemptiveResource(env)
+        self.issue_ongoing = False
+        self.can_leave = with_resource_monitor(
+            simpy.PreemptiveResource(env),
+            'can_leave', self
+        )
 
-        self.data = []
         self.events = {
             'arrive_at_work': self.env.event()
         }
@@ -75,7 +81,7 @@ class Operator(Base):
         
             if self.state == 'work':
                 self.debug('At work, will take time before issue noticed')
-                yield self.env.timeout(120)  # TODO: From distribution
+                yield self.env.timeout(10 * 60)  # TODO: From distribution
             else:
                 self.debug(
                     'Will wait until arrival at work to notice the issue')
@@ -88,6 +94,7 @@ class Operator(Base):
 
                 # Wait until issue is cleared
                 yield self.machine.events['issue_cleared']
+                self.issue_ongoing = False
 
                 # TODO: Switch to event from repairman
                 if self.machine.state != 'production':
@@ -105,7 +112,7 @@ class Operator(Base):
         # Which overrides which?
         self.log('Working...')
         self.state = 'work'
-        self._trigger_event('arrive_at_work')
+        self.emit('arrive_at_work')
         self.env.process(self.machine.press_on())
         yield self.machine.events['switched_on']
 

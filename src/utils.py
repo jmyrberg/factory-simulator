@@ -4,6 +4,81 @@
 import arrow
 import simpy
 
+from functools import wraps, partial
+
+
+class Monitor:
+    """Monitor class attributes."""
+
+    def __init__(self, dtype='categorical'):
+        self.dtype = dtype
+
+    def __set_name__(self, owner, name):
+        self.public_name = name
+        self.private_name = f'_{name}'
+
+    def __get__(self, obj, objtype=None):
+        value = getattr(obj, self.private_name)
+        return value
+
+    def __set__(self, obj, value):
+        if hasattr(self, 'dtype'):
+            obj.data[self.dtype].append((
+                obj.now_dt.datetime,
+                obj.name,
+                self.public_name,
+                value
+            ))
+        else:
+            obj.warning('Unknown dtype')
+        setattr(obj, self.private_name, value)
+
+
+def patch_resource(resource, pre=None, post=None):
+    """Monitor simpy resources."""
+    def get_wrapper(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if pre:
+                pre(resource)
+
+            ret = func(*args, **kwargs)
+
+            if post:
+                post(resource)
+
+            return ret
+        return wrapper
+
+    # Replace the original operations with our wrapper
+    for name in ['put', 'get', 'request', 'release']:
+        if hasattr(resource, name):
+            setattr(resource, name, get_wrapper(getattr(resource, name)))
+
+
+def with_resource_monitor(resource, resource_name, obj):
+    def mfunc(resource, key_funcs, dtype='numerical'):
+        for key, func in key_funcs:
+            obj.data[dtype].append((
+                obj.now_dt.datetime, obj.name,
+                f'{resource_name}_{key}', func(resource)
+            ))
+
+    if isinstance(resource, simpy.Container):
+        pre = partial(mfunc, key_funcs=[('pre_level', lambda x: x.level)])
+        post = partial(mfunc, key_funcs=[('post_level', lambda x: x.level)])
+    elif isinstance(resource, simpy.Resource):
+        pre = None
+        post = partial(mfunc, key_funcs=[
+            ('post_queue', lambda x: len(x.queue)),
+            ('post_users', lambda x: len(x.users)),
+        ])
+    else:
+        raise NotImplementedError(f'Unknown type "{type(resource)}"')
+
+    patch_resource(resource, pre, post)
+    return resource
+
 
 def ignore_preempted(f):
     def wrapper(*args, **kwargs):

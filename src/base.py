@@ -3,6 +3,7 @@
 
 import logging
 
+from collections import defaultdict
 from datetime import timedelta
 
 import arrow
@@ -18,9 +19,10 @@ class Base:
         self.env = env
         self.name = kwargs.get('name', 'Unknown')
         self.tz = 'Europe/Helsinki'
+        self.data = defaultdict(lambda: [])
 
-    def _trigger_event(self, name, value=None):
-        self.debug(f'Triggered "{name}"')
+    def emit(self, name, value=None):
+        self.debug(f'Event - "{name}"')
         self.events[name].succeed(value)
         self.events[name] = self.env.event()
 

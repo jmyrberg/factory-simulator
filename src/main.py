@@ -7,6 +7,8 @@ import sys
 sys.path.append('./')
 
 import arrow
+import matplotlib.pyplot as plt
+import pandas as pd
 import simpy
 
 from src.machine import Machine
@@ -26,5 +28,9 @@ start = arrow.now('Europe/Helsinki')
 env = simpy.Environment(initial_time=start.timestamp())
 machine = Machine(env)
 operator = Operator(env).assign_machine(machine)
+
+df = pd.DataFrame(operator.data, columns=['ds', 'name', 'value'])
+df.plot()
+plt.show(block=True)
 
 env.run(until=start.timestamp() + 3 * 24 * 60 * 60)
