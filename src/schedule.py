@@ -89,7 +89,8 @@ class Block(Base):
 class CronBlock(Block):
 
     def __init__(self, env, start_expr, duration_hours, program=None):
-        name = f'CronBlock({start_expr}, {program})'
+        program_name = program.name if program is not None else None
+        name = f'Cron({start_expr}, {duration_hours}h, {program_name})'
         super().__init__(env, program, name=name)
         self.start_expr = start_expr
         self.duration_hours = duration_hours
@@ -133,36 +134,44 @@ class OperatingSchedule(Base):
     active_block = Monitor()
 
     """Controls the "program" -attribute of a machine"""
-    def __init__(self, env, machine, blocks=None, disabled=False):
-        super().__init__(env, name='OperatingSchedule')
-        self.machine = machine
-        self.active_block = None
-        self.blocks = [
-            CronBlock(self.env, '30 8 * * *', 3, 0),
-            CronBlock(self.env, '30 11 * * *', 0.5, 0),
-            CronBlock(self.env, '00 12 * * *', 2, 1),
-            CronBlock(self.env, '00 14 * * *', 2, 0)
-        ]
+    def __init__(self, env, blocks=None, name='operating-schedule'):
+        super().__init__(env, name=f'OperatingSchedule({name})')
+        self.blocks = blocks
         for block in self.blocks:
             block.assign_schedule(self)
 
-        self.disabled = disabled
+        self.disabled = False
+        self.machine = None
+        self.active_block = None
         self.procs = {
             'schedule': self.env.process(self._schedule()),
             'on_machine_start': self.env.process(self._on_machine_start())
         }
         self.events = {
+            'machine_assigned': self.env.event(),
             'block_started': self.env.event(),
             'block_finished': self.env.event(),
             'block_deleted': self.env.event()
         }
 
+    def assign_machine(self, machine):
+        self.machine = machine
+        self.emit('machine_assigned')
+        yield self.env.timeout(0)
+
     def _on_machine_start(self):
         while True:
-            yield self.machine.events['switched_on_from_off']
-            if self.disabled:
-                pass
-            elif self.active_block and self.active_block.program is not None:
+            if self.machine is None:
+                yield self.events['machine_assigned']
+
+            if self.machine is not None:
+                yield self.machine.events['switched_on_from_off']
+
+            # NOTE: Not tested if machine unassigned?
+
+            if (self.machine is not None
+                    and self.active_block
+                    and self.active_block.program is not None):
                 program = self.active_block.program
                 self.debug(f'Setting program "{program}" at machine start')
                 self.env.process(
@@ -184,15 +193,17 @@ class OperatingSchedule(Base):
             program = self.active_block.program
             if program is None:
                 raise ValueError('Block is missing program')
-            if (not self.disabled
+
+            if (self.machine is not None
                     and self.machine.state not in ['off', 'error']):
                 self.env.process(
                     self.machine._automated_program_switch(program))
 
             yield self.events['block_finished']
             self.active_block = None
-            if (not self.disabled
+            if (self.machine is not None
                     and self.machine.state not in ['off', 'on', 'error']):
                 self.debug('Switching to on')
                 self.env.process(self.machine._switch_on(priority=-2))
+
             self.debug(f'Schedule block {block} finished')

@@ -21,6 +21,9 @@ class Base:
         self.tz = 'Europe/Helsinki'
         self.data = defaultdict(lambda: [])
 
+    def __repr__(self):
+        return self.name
+
     def emit(self, name, value=None):
         self.debug(f'Event - "{name}"')
         self.events[name].succeed(value)

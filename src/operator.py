@@ -47,18 +47,13 @@ class Operator(Base):
         return self
 
     def _get_time_until_next_work_arrival(self):
-        ts = self.now_dt.to(self.tz)
-        if ts.weekday() in ():
-            days = 7 - ts.weekday()
-        else:
-            days = 0 if ts.hour < 8 else 1
+        # ts = self.now_dt.to(self.tz)
+        # if ts.weekday() in ():
+        #     days = 7 - ts.weekday()
+        # else:
+        #     days = 0 if ts.hour < 8 else 1
 
-        next_day = ts.day + days
-        next_hour = 8
-        next_minute = 0
-        arrival = ts.replace(
-            day=next_day, hour=next_hour, minute=next_minute)
-        return arrival.timestamp() - self.env.now
+        return self.time_until_time('08:00')
 
     def _fix_issue(self, issue):
         if isinstance(issue, LowConsumableLevelIssue):
@@ -78,7 +73,7 @@ class Operator(Base):
             issue = yield self.machine.events['issue_occurred']
             self.debug('Issue ongoing, but not noticed yet')
             self.issue_ongoing = True
-        
+
             if self.state == 'work':
                 self.debug('At work, will take time before issue noticed')
                 yield self.env.timeout(10 * 60)  # TODO: From distribution
@@ -97,7 +92,8 @@ class Operator(Base):
                 self.issue_ongoing = False
 
                 # TODO: Switch to event from repairman
-                if self.machine.state != 'production':
+                if (len(self.can_leave.queue) == 0
+                        and self.machine.state != 'production'):
                     self.debug('Restarting production manually')
                     self.env.process(self.machine.start_production())
 
@@ -125,10 +121,12 @@ class Operator(Base):
         if lunch in results:
             self.env.process(self._lunch())
         elif home in results:
-            # TODO: Why this part is run twice??
-            self.env.process(self.machine.press_off())
-            yield self.machine.events['switched_off']
-            self.env.process(self._home())
+            with self.can_leave.request() as can_leave:
+                yield can_leave
+                self.env.process(self.machine.press_off())
+                yield self.machine.events['switched_off']
+                yield self.env.timeout(20 * 60)
+                self.env.process(self._home())
 
     def _lunch(self):
         if self.time_passed_today('14:00'):

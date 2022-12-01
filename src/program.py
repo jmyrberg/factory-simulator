@@ -11,12 +11,13 @@ from src.utils import Monitor
 
 
 class Program(Base):
+    # TODO: Create a couple of different kinds of programs (Batch/Maintenance)
 
     state = Monitor()
 
-    def __init__(self, env, bom):
+    def __init__(self, env, bom, name='program'):
         """Machine program."""
-        super().__init__(env, name='Program')
+        super().__init__(env, name=f'Program({name})')
         self.state = 'off'
         self.bom = bom
         self.batch = {}
@@ -42,17 +43,17 @@ class Program(Base):
         }
 
         # Checks
-        for name, d in self.bom.items():
-            container = d['consumable'].container
-            expected_amount = duration * d['rate']
-            if container.level < expected_amount:
-                self.warning('Will not produce due low consumable level')
-                self.emit('program_issue')
-                self.state = 'issue'
-                raise simpy.Interrupt(LowConsumableLevelIssue(d['consumable']))
+        for mtype in ['consumables', 'materials']:
+            for obj, d in getattr(self.bom, mtype).items():
+                container = obj.container
+                expected_amount = duration * d['consumption']
+                if container.level < expected_amount:
+                    self.warning('Will not produce due low consumable level')
+                    self.emit('program_issue')
+                    self.state = 'issue'
+                    raise simpy.Interrupt(LowConsumableLevelIssue(obj))
 
         # Run or interrupt
-        # TODO: What if we don't have enough in tank to consume?
         try:
             yield self.env.timeout(duration)
             self.batch['status'] = 'success'
@@ -74,10 +75,11 @@ class Program(Base):
         end_time = self.env.now
         self.batch['end_time'] = end_time
         time_spent = end_time - start_time
-        for name, d in self.bom.items():
-            amount = time_spent * d['rate']
-            self.debug(f'Consuming {amount:.2f} of {name}')
-            yield from d['consumable'].consume(amount)
+        for mtype in ['consumables', 'materials']:
+            for obj, d in getattr(self.bom, mtype).items():
+                amount = time_spent * d['consumption']
+                self.debug(f'Consuming {amount:.2f} of {obj.name}')
+                yield from obj.consume(amount)
 
         self.state = 'off'
         self.emit('program_stopped')

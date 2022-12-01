@@ -22,7 +22,8 @@ class Machine(Base):
     temperature = Monitor('numerical')
     room_temperature = Monitor('numerical')
 
-    def __init__(self, env):
+    def __init__(self, env, schedule=None, programs=None, default_program=None,
+                 name='machine'):
         """Machine in a factory.
 
         Possible state changes:
@@ -31,7 +32,7 @@ class Machine(Base):
             idle -> on: 
             on -> error: 
         """
-        super().__init__(env, name='Machine')
+        super().__init__(env, name=f'Machine({name})')
         self.ui = with_resource_monitor(  # user actions
             simpy.PreemptiveResource(env),
             'ui', self
@@ -42,28 +43,10 @@ class Machine(Base):
         )
         self.state = 'off'
         self.states = ['off', 'on', 'production', 'error']
-        self.schedule = OperatingSchedule(env, self)
-        self.programs = {
-            0: Program(
-                env,
-                bom={
-                    'raw-material': {
-                        'consumable': Consumable(env, 'raw-material-0'),
-                        'rate': 5 / (60 * 15)  # = 5 units per 15 mins
-                    }
-                }
-            ),
-            1: Program(
-                env,
-                bom={
-                    'raw-material': {
-                        'consumable': Consumable(env, 'raw-material-1'),
-                        'rate': 2.5 / (60 * 15)
-                    }
-                }
-            )
-        }
-        self.program = 0
+        self.schedule = schedule
+        self.programs = programs
+        self.program = default_program or list(self.programs.keys())[0]
+        assert self.program in self.programs, 'Default program not in programs'
         self.production_interruption_ongoing = False
 
         # Statistics
@@ -110,11 +93,16 @@ class Machine(Base):
             'temperature_change': self.env.event()
         }
         self.procs = {
+            'init': self.env.process(self._init()),
             'room_temperature': self.env.process(self._room_temperature_proc()),
             'temperature': self.env.process(self._temperature_proc()),
             'temperature_monitor':
                 self.env.process(self._temperature_monitor_proc())
         }
+
+    def _init(self):
+        if self.schedule is not None:
+            yield self.env.process(self.schedule.assign_machine(self))
 
     def _room_temperature_proc(self):
         hourly_delta = [
@@ -389,7 +377,7 @@ class Machine(Base):
 
             assert self.state != 'production', 'Something went wrong :('
             self.emit('switching_program')
-            yield self.env.timeout(1)
+            yield self.env.timeout(20)
             self.program = program
             self.emit('switched_program')
 
@@ -530,8 +518,8 @@ class Machine(Base):
             self.emit('production_started')
             try:
                 # Run one batch of program
-                self.procs['program_run'] = (
-                    self.env.process(self.programs[self.program].run()))
+                self.procs['program_run'] = self.env.process(
+                    self.program.run())
                 yield self.procs['program_run']
             except simpy.Interrupt as i:
                 self.info(f'Production interrupted: {i}')

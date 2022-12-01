@@ -1,4 +1,4 @@
-"""Machine programs."""
+"""Factory."""
 
 
 import logging
@@ -11,7 +11,7 @@ from src.base import Base
 from src.utils import with_resource_monitor
 
 
-class Consumable(Base):
+class Factory(Base):
 
     def __init__(self, env, name='raw-material', capacity=100.0, init=None):
         """Machine program."""
@@ -38,3 +38,7 @@ class Consumable(Base):
     def consume(self, amount):
         yield self.container.get(amount)
         self.log(f'Container level: {self.container.level:.2f}')
+
+
+class Material(Base):
+    """For discrete materials with ID"""

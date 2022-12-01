@@ -1,0 +1,67 @@
+materials:
+  - id: material1
+    name: "My material 1"
+  - id: material2
+    name: "My material 2"
+
+consumables:
+  - id: consumable1
+    name: "My consumable 1"
+  - id: consumable2
+    name: "My consumable 2"
+
+products:
+  - id: product1
+    name: "My output product 1"
+
+boms:
+  - id: bom1
+    name: "My bill of material"
+    materials:
+      - id: material1
+        consumption: 5
+      - id: material2
+        consumption: 10
+    products:
+      - id: product1
+        quantity: 1
+
+  - id: bom2
+    name: "My bill of material 2"
+    materials:
+      - id: material1
+        consumption: 2
+      - id: material2
+        consumption: 2.5
+    consumables:
+      - id: consumable1
+        consumption: 2
+    products:
+      - id: product1
+        quantity: 1
+
+programs:
+  - id: program1
+    name: "My program 1"
+    bom: bom1
+  - id: program2
+    name: "My program 2"
+    bom: bom1
+
+schedules:
+  - id: schedule1
+    name: "Basic schedule"
+    blocks:
+      - cron: 30 8 * * *
+        duration-hours: 2
+        program: program1
+      - cron: 00 12 * * *
+        duration-hours: 1.5
+        program: program2
+
+machines:
+  - id: machine1
+    name: "My machine"
+    schedule: schedule1
+    programs: [program1, program2]
+    default-program: program1
