@@ -2,6 +2,7 @@
 
 
 from datetime import datetime, timedelta
+from functools import partial, wraps, update_wrapper
 
 import arrow
 import simpy
@@ -9,25 +10,95 @@ import simpy
 from croniter import croniter
 
 from src.base import Base
+from src.maintenance import Maintenance
+from src.issues import ScheduledMaintenanceIssue
 from src.utils import Monitor
+
+
+def get_action(name, *args, **kwargs):
+    """Action called upon block start."""
+    if 'schedule' in kwargs:
+        raise ValueError('Reserved kwarg "schedule" given in "kwargs"')
+
+    funcs = {
+        'switch-program': _action_switch_program,
+        'maintenance': _action_maintenance
+    }
+    func = partial(funcs[name], *args, **kwargs)
+    args_str = ", ".join(args)
+    kwargs_str = ', '.join(f'{k}={v!r}' for k, v in kwargs.items())
+    func_name = f'{name}('
+    if len(args_str) > 0:
+        func_name += args_str + ', '
+    if len(kwargs_str) > 0:
+        func_name += kwargs_str
+    func_name += ')'
+    func.__name__ = func_name
+    return func
+
+
+def _action_switch_program(block, program_id):
+    # TODO: Simplify block/schedule events
+    block.emit('action_started')
+    machine = block.schedule.machine
+    if machine is None or program_id is None:
+        raise ValueError('Machine or program_id is None')
+
+    programs = [p for p in machine.programs if p.uid == program_id]
+    if len(programs) == 0:
+        raise ValueError(f'Unknown program "{program_id}”')
+    program = programs[0]
+
+    block.env.process(machine._automated_program_switch(program))
+
+    yield block.events['stopped']
+    if (machine is not None
+            and machine.state not in ['off', 'on', 'error']):
+        block.debug('Switching to on')
+        block.env.process(machine._switch_on(priority=-2))
+
+    block.emit('action_stopped')
+
+
+def _action_maintenance(block):
+    # TODO: Simplify block/schedule events
+    block.emit('action_started')
+    machine = block.schedule.machine
+    maintenance = machine.maintenance
+    duration = block.duration_hours * 60 * 60
+    block.debug(f'Maintenance duration: {duration / 60 / 60} hours')
+    issue = ScheduledMaintenanceIssue(machine, duration)
+    block.env.process(maintenance.add_issue(issue))
+    yield block.events['stopped']
+    block.emit('action_stopped')
 
 
 class Block(Base):
 
     is_active = Monitor()
-    program = Monitor()
+    action = Monitor()
 
-    def __init__(self, env, program=None, name=None):
-        super().__init__(env, name=name or 'Block')
-        self.program = program
+    def __init__(self, env, action=None, name='block'):
+        """
+        
+        action (tuple): Tuple of (action_func, args, kwargs). Assigned machine
+            will be automatically passed within kwargs.
+        """
+        super().__init__(env, name=name)
+        self.action = action
         self.is_active = False
         self.deleted = False
+
+        self.schedule = None
         self.events = {
             # Block related
             'start': self.env.event(),
             'started': self.env.event(),
             'stop': self.env.event(),
-            'stopped': self.env.event()
+            'stopped': self.env.event(),
+            # Action related
+            'action_started': self.env.event(),
+            'action_stopped': self.env.event()
         }
         self.procs = {
             'run': self.env.process(self._run())
@@ -54,8 +125,14 @@ class Block(Base):
     def assign_schedule(self, schedule):
         self.schedule = schedule
 
-    def assign_program(self, program):
-        self.program = program
+    def assign_action(self, action):
+        self.action = action
+
+    def run_action(self):
+        if self.action is not None:
+            return self.action(block=self)
+        else:
+            self.warning('Tried to run action when action=None')
 
     def _run(self):
         while True:
@@ -88,22 +165,18 @@ class Block(Base):
 
 class CronBlock(Block):
 
-    def __init__(self, env, start_expr, duration_hours, program=None):
-        program_name = program.name if program is not None else None
-        name = f'Cron({start_expr}, {duration_hours}h, {program_name})'
-        super().__init__(env, program, name=name)
-        self.start_expr = start_expr
+    def __init__(self, env, cron, duration_hours, action=None,
+                 name='cron-block'):
+        super().__init__(env, action=action, name=name)
+        self.cron = cron
         self.duration_hours = duration_hours
         self.next_start_dt = None
         self.next_end_dt = None
 
         self.env.process(self.start_cond())
 
-    def __repr__(self):
-        return self.name
-
     def start_cond(self):
-        cron_iter = croniter(self.start_expr, self.now_dt.datetime)
+        cron_iter = croniter(self.cron, self.now_dt.datetime)
         while True:
             self.next_start_dt = cron_iter.get_next(datetime)
             self.next_end_dt = (
@@ -135,7 +208,7 @@ class OperatingSchedule(Base):
 
     """Controls the "program" -attribute of a machine"""
     def __init__(self, env, blocks=None, name='operating-schedule'):
-        super().__init__(env, name=f'OperatingSchedule({name})')
+        super().__init__(env, name=name)
         self.blocks = blocks
         for block in self.blocks:
             block.assign_schedule(self)
@@ -169,13 +242,10 @@ class OperatingSchedule(Base):
 
             # NOTE: Not tested if machine unassigned?
 
-            if (self.machine is not None
-                    and self.active_block
-                    and self.active_block.program is not None):
-                program = self.active_block.program
-                self.debug(f'Setting program "{program}" at machine start')
-                self.env.process(
-                    self.machine._automated_program_switch(program))
+            if self.machine and self.active_block:
+                block = self.active_block
+                self.debug(f'Running block "{block}" at machine start')
+                self.env.process(self.active_block.run_action())
 
     def _schedule(self):
         while True:
@@ -189,21 +259,12 @@ class OperatingSchedule(Base):
             assert block.is_active
             self.active_block = block
 
-            # Start program
-            program = self.active_block.program
-            if program is None:
-                raise ValueError('Block is missing program')
-
+            # Start action
             if (self.machine is not None
                     and self.machine.state not in ['off', 'error']):
-                self.env.process(
-                    self.machine._automated_program_switch(program))
+                self.env.process(self.active_block.run_action())
 
             yield self.events['block_finished']
             self.active_block = None
-            if (self.machine is not None
-                    and self.machine.state not in ['off', 'on', 'error']):
-                self.debug('Switching to on')
-                self.env.process(self.machine._switch_on(priority=-2))
 
             self.debug(f'Schedule block {block} finished')

@@ -15,7 +15,7 @@ class Consumable(Base):
 
     def __init__(self, env, name='raw-material', capacity=100.0, init=None):
         """Machine program."""
-        super().__init__(env, name=f'Consumable({name})')
+        super().__init__(env, name=name)
         self.name = name
         self.container = with_resource_monitor(simpy.Container(
             env=env,

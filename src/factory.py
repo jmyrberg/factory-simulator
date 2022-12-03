@@ -38,7 +38,3 @@ class Factory(Base):
     def consume(self, amount):
         yield self.container.get(amount)
         self.log(f'Container level: {self.container.level:.2f}')
-
-
-class Material(Base):
-    """For discrete materials with ID"""

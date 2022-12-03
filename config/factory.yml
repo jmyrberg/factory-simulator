@@ -52,12 +52,30 @@ schedules:
   - id: schedule1
     name: "Basic schedule"
     blocks:
-      - cron: 30 8 * * *
-        duration-hours: 2
-        program: program1
-      - cron: 00 12 * * *
+      - name: Program 1
+        cron: 30 8 * * *
+        duration-hours: 1
+        action:
+          name: switch-program
+          kwargs:
+            program_id: program1
+      - name: Maintenance
+        cron: 00 10 * * *
         duration-hours: 1.5
-        program: program2
+        action:
+          name: maintenance
+      - name: Program 1
+        cron: 00 12 * * *
+        duration-hours: 1.5
+        action:
+          name: switch-program
+          kwargs:
+            program_id: program1
+
+maintenance:
+  - id: maintenance1
+    name: Maintenance team
+
 
 machines:
   - id: machine1
@@ -65,3 +83,4 @@ machines:
     schedule: schedule1
     programs: [program1, program2]
     default-program: program1
+    maintenance: maintenance1

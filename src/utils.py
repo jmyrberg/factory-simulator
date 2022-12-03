@@ -10,8 +10,9 @@ from functools import wraps, partial
 class Monitor:
     """Monitor class attributes."""
 
-    def __init__(self, dtype='categorical'):
+    def __init__(self, dtype='categorical', value_func=None):
         self.dtype = dtype
+        self.value_func = value_func
 
     def __set_name__(self, owner, name):
         self.public_name = name
@@ -27,7 +28,7 @@ class Monitor:
                 obj.now_dt.datetime,
                 obj.name,
                 self.public_name,
-                value
+                self.value_func(value) if self.value_func else value
             ))
         else:
             obj.warning('Unknown dtype')
@@ -72,6 +73,11 @@ def with_resource_monitor(resource, resource_name, obj):
         post = partial(mfunc, key_funcs=[
             ('post_queue', lambda x: len(x.queue)),
             ('post_users', lambda x: len(x.users)),
+        ])
+    elif isinstance(resource, simpy.Store):
+        pre = None
+        post = partial(mfunc, key_funcs=[
+            ('n_items', lambda x: len(x.items))
         ])
     else:
         raise NotImplementedError(f'Unknown type "{type(resource)}"')

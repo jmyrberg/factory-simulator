@@ -15,5 +15,5 @@ class Product(Base):
 
     def __init__(self, env, name='product'):
         """Machine program."""
-        super().__init__(env, name=f'Product({name})')
+        super().__init__(env, name=name)
         self.name = name

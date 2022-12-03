@@ -13,8 +13,7 @@ from src.utils import with_resource_monitor
 
 class Material(Base):
 
-    def __init__(self, env, name='material1', capacity=100.0, init=None):
-        """Machine program."""
+    def __init__(self, env, capacity=100.0, init=None, name='material'):
         super().__init__(env, name=f'Material({name})')
         self.container = with_resource_monitor(simpy.Container(
             env=env,

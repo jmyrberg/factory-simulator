@@ -106,6 +106,16 @@ class Base:
             raise ValueError(f'{target_dt} < {self.now_dt}')
         return (target_dt - self.now_dt).total_seconds()
 
+    def uni(self, low, high):
+        return np.random.uniform(low, high)
+
+    def iuni(self, low, high, weights=None):
+        if weights is not None:
+            print(low, high, weights)
+            return np.random.choice(np.arange(low, high + 1), p=weights)
+        else:
+            return np.random.randint(low, high)
+
     def norm(self, mu, sigma):
         return np.random.normal(mu, sigma)
 

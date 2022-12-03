@@ -16,7 +16,7 @@ class Operator(Base):
     state = Monitor()
     issue_ongoing = Monitor()
 
-    def __init__(self, env):
+    def __init__(self, env, name='operator'):
         """Models an operator at the factory.
 
         Basic cycle:
@@ -26,7 +26,7 @@ class Operator(Base):
             4) Operate/monitor the machine
             5) Go home
         """
-        super().__init__(env, name='Operator')
+        super().__init__(env, name=name)
         self.state = 'home'
         self.machine = None
         self.issue_ongoing = False

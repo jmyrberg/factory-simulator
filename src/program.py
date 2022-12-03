@@ -15,9 +15,10 @@ class Program(Base):
 
     state = Monitor()
 
-    def __init__(self, env, bom, name='program'):
+    def __init__(self, uid, env, bom, name='program'):
         """Machine program."""
-        super().__init__(env, name=f'Program({name})')
+        super().__init__(env, name=name)
+        self.uid = uid
         self.state = 'off'
         self.bom = bom
         self.batch = {}

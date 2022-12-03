@@ -19,11 +19,12 @@ class Machine(Base):
     state = Monitor()
     program = Monitor()
     production_interruption_ongoing = Monitor()
+    maintenance_log = Monitor('numerical', lambda x: len(x))
     temperature = Monitor('numerical')
     room_temperature = Monitor('numerical')
 
     def __init__(self, env, schedule=None, programs=None, default_program=None,
-                 name='machine'):
+                 maintenance=None, name='machine'):
         """Machine in a factory.
 
         Possible state changes:
@@ -32,7 +33,7 @@ class Machine(Base):
             idle -> on: 
             on -> error: 
         """
-        super().__init__(env, name=f'Machine({name})')
+        super().__init__(env, name=name)
         self.ui = with_resource_monitor(  # user actions
             simpy.PreemptiveResource(env),
             'ui', self
@@ -45,7 +46,9 @@ class Machine(Base):
         self.states = ['off', 'on', 'production', 'error']
         self.schedule = schedule
         self.programs = programs
-        self.program = default_program or list(self.programs.keys())[0]
+        self.program = default_program or self.programs[0]
+        self.maintenance = maintenance
+        self.maintenance_log = []
         assert self.program in self.programs, 'Default program not in programs'
         self.production_interruption_ongoing = False
 
@@ -610,3 +613,6 @@ class Machine(Base):
         else:
             self.warning('No issues to be cleared')
             return
+
+    def log_maintenance(self, item):
+        self.maintenance_log = self.maintenance_log + [item]  # Trigger save
