@@ -56,7 +56,7 @@ class Base:
         return self.minutes(60 * seconds)
 
     def days(self, seconds):
-        return self, self.hours(24 * seconds)
+        return self.hours(24 * seconds)
 
     @property
     def day(self):
@@ -111,7 +111,6 @@ class Base:
 
     def iuni(self, low, high, weights=None):
         if weights is not None:
-            print(low, high, weights)
             return np.random.choice(np.arange(low, high + 1), p=weights)
         else:
             return np.random.randint(low, high)

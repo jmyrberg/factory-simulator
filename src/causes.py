@@ -38,5 +38,9 @@ class ProgramSwitchCause(BaseCause):
         self.force = force
 
 
+class WorkStoppedCause(BaseCause):
+    """Operator has left work."""
+
+
 class UnknownCause(BaseCause):
     """Unknown cause."""

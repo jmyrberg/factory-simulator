@@ -7,11 +7,11 @@ import simpy
 from src.base import Base
 from src.causes import BaseCause, ManualSwitchOffCause, \
     ManualStopProductionCause, AutomatedStopProductionCause
-from src.consumable import Consumable
+from src.containers import ConsumableContainer, MaterialContainer
 from src.issues import ProductionIssue, OverheatIssue
 from src.program import Program
-from src.schedule import OperatingSchedule
-from src.utils import ignore_preempted, Monitor, with_resource_monitor
+from src.schedules import OperatingSchedule
+from src.utils import ignore_causes, Monitor, with_resource_monitor
 
 
 class Machine(Base):
@@ -23,8 +23,8 @@ class Machine(Base):
     temperature = Monitor('numerical')
     room_temperature = Monitor('numerical')
 
-    def __init__(self, env, schedule=None, programs=None, default_program=None,
-                 maintenance=None, name='machine'):
+    def __init__(self, env, containers=None, schedule=None, programs=None,
+                 default_program=None, maintenance=None, name='machine'):
         """Machine in a factory.
 
         Possible state changes:
@@ -45,11 +45,14 @@ class Machine(Base):
         self.state = 'off'
         self.states = ['off', 'on', 'production', 'error']
         self.schedule = schedule
+        self.containers = containers or []
         self.programs = programs
         self.program = default_program or self.programs[0]
-        self.maintenance = maintenance
-        self.maintenance_log = []
         assert self.program in self.programs, 'Default program not in programs'
+        self.maintenance = maintenance
+
+        # Internal states
+        self.maintenance_log = []
         self.production_interruption_ongoing = False
 
         # Statistics
@@ -188,7 +191,7 @@ class Machine(Base):
             # self.debug(f'Machine temperature: {self.temperature:.2f}')
             # yield self.env.timeout(60)
 
-    @ignore_preempted
+    @ignore_causes()
     def _switch_on(
             self, require_executor=True, priority=0, max_wait=0, cause=None):
         """Change machine state to "on".
@@ -247,15 +250,15 @@ class Machine(Base):
         self.emit('on_button_pressed')
         self.env.process(self._switch_on(priority=priority))
 
-    @ignore_preempted
-    def _switch_off(self, emergency=False, require_executor=True,
+    @ignore_causes()
+    def _switch_off(self, force=False, require_executor=True,
                     priority=0, max_wait=0):
         """Change machine state to "off".
 
         State changes:
         off        -> off: No
         on         -> off: Yes
-        production -> off: Yes (gracefully or emergency)
+        production -> off: Yes (gracefully or force)
         error      -> off: Yes
         """
         yield self.env.timeout(1)
@@ -264,7 +267,7 @@ class Machine(Base):
             self.emit('switched_off')
             return
 
-        priority = -9999 if emergency else priority
+        priority = -9999 if force else priority
         with self.execute.request(priority) as executor:
             if require_executor:
                 results = yield executor | self.env.timeout(max_wait)
@@ -285,7 +288,7 @@ class Machine(Base):
                 self.emit('switching_off')
 
                 # Try interrupt production
-                cause = ManualSwitchOffCause(force=emergency)
+                cause = ManualSwitchOffCause(force=force)
                 self.env.process(self._interrupt_production(
                     cause, require_executor=False, priority=priority))
                 self.debug('Waiting for production to stop')
@@ -306,11 +309,11 @@ class Machine(Base):
                 self.state = 'off'
                 self.emit('switched_off')
 
-    def press_off(self, emergency=False, priority=-10, max_wait=120):
+    def press_off(self, force=False, priority=-10, max_wait=120):
         yield self.env.timeout(1)
         self.emit('off_button_pressed')
         self.env.process(self._switch_off(
-            emergency=emergency, priority=priority, max_wait=max_wait))
+            force=force, priority=priority, max_wait=max_wait))
 
     def _switch_production(
             self, require_executor=True, priority=0, max_wait=0):
@@ -345,7 +348,7 @@ class Machine(Base):
             self.state = 'production'
             self.emit('switched_production')
 
-    @ignore_preempted
+    @ignore_causes()
     def _switch_program(
             self, program, require_executor=True, priority=0, max_wait=10):
         """Switch program on machine
@@ -384,7 +387,7 @@ class Machine(Base):
             self.program = program
             self.emit('switched_program')
 
-    @ignore_preempted
+    @ignore_causes()
     def _automated_program_switch(
             self, program, priority=-2, force=False, max_wait=300):
         """Switch production program automatically."""
@@ -434,7 +437,7 @@ class Machine(Base):
 
                 self.emit('switched_program_automatically')
 
-    @ignore_preempted
+    @ignore_causes()
     def switch_program(self, program, priority=-1, max_wait=60):
         yield self.env.timeout(1)
         with self.ui.request() as ui:
@@ -517,12 +520,12 @@ class Machine(Base):
             self.warning('Production cannot be started with no program set')
             return
 
+        self.emit('production_started')
         while True:
-            self.emit('production_started')
             try:
                 # Run one batch of program
                 self.procs['program_run'] = self.env.process(
-                    self.program.run())
+                    self.program.run(self))
                 yield self.procs['program_run']
             except simpy.Interrupt as i:
                 self.info(f'Production interrupted: {i}')
@@ -616,3 +619,17 @@ class Machine(Base):
 
     def log_maintenance(self, item):
         self.maintenance_log = self.maintenance_log + [item]  # Trigger save
+
+    def find_containers(self, obj):
+        filtered_containers = []
+        for container in self.containers:
+            if (isinstance(container, MaterialContainer)
+                    and container.material == obj):
+                filtered_containers.append(container)
+            elif (isinstance(container, ConsumableContainer)
+                    and container.consumable == obj):
+                filtered_containers.append(container)
+            else:
+                ValueError(f'Unknown container type "{type(obj)}"')
+
+        return filtered_containers

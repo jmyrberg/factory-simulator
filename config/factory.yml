@@ -1,18 +1,34 @@
+name: My factory
+
 materials:
   - id: material1
-    name: "My material 1"
+    name: Material1
   - id: material2
-    name: "My material 2"
+    name: Material2
 
 consumables:
   - id: consumable1
-    name: "My consumable 1"
+    name: Consumable1
   - id: consumable2
-    name: "My consumable 2"
+    name: Consumable2
+
+containers:
+  - id: materialcontainer
+    name: MaterialContainer(Material1)
+    content: material1
+    capacity: 100
+  - id: materialcontainer2
+    name: MaterialContainer(Material2)
+    content: material2
+    capacity: 100
+  - id: consumablecontainer
+    name: ConsumableContainer(Consumable1)
+    content: consumable1
+    capacity: 100
 
 products:
   - id: product1
-    name: "My output product 1"
+    name: Product1
 
 boms:
   - id: bom1
@@ -42,45 +58,59 @@ boms:
 
 programs:
   - id: program1
-    name: "My program 1"
+    name: Program1
     bom: bom1
   - id: program2
-    name: "My program 2"
-    bom: bom1
+    name: Program2
+    bom: bom2
 
 schedules:
   - id: schedule1
-    name: "Basic schedule"
+    name: Schedule
     blocks:
-      - name: Program 1
+      - name: Cron(8:30, 1)
         cron: 30 8 * * *
         duration-hours: 1
         action:
           name: switch-program
           kwargs:
             program_id: program1
-      - name: Maintenance
-        cron: 00 10 * * *
-        duration-hours: 1.5
+      - name: Cron(15th at 06:00, M)
+        cron: 00 06 15 * *
+        duration-hours: 24
+        priority: -1
         action:
           name: maintenance
-      - name: Program 1
-        cron: 00 12 * * *
+      - name: Cron(12:00, 1)
+        cron: 00 12 1-31/2 * *
         duration-hours: 1.5
         action:
           name: switch-program
           kwargs:
             program_id: program1
+      - name: Cron(12:00, 2)
+        cron: 00 12 2-30/2 * *
+        duration-hours: 1.5
+        action:
+          name: switch-program
+          kwargs:
+            program_id: program2
 
 maintenance:
   - id: maintenance1
-    name: Maintenance team
+    name: Maintenance
 
 
 machines:
   - id: machine1
-    name: "My machine"
+    name: Machine
     schedule: schedule1
     programs: [program1, program2]
     default-program: program1
+    containers: [materialcontainer, materialcontainer2, consumablecontainer]
     maintenance: maintenance1
+
+operators:
+  - id: operator1
+    name: John
+    machine: machine1

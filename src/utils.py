@@ -74,7 +74,7 @@ def with_resource_monitor(resource, resource_name, obj):
             ('post_queue', lambda x: len(x.queue)),
             ('post_users', lambda x: len(x.users)),
         ])
-    elif isinstance(resource, simpy.Store):
+    elif isinstance(resource, (simpy.Store, simpy.PriorityStore)):
         pre = None
         post = partial(mfunc, key_funcs=[
             ('n_items', lambda x: len(x.items))
@@ -86,17 +86,25 @@ def with_resource_monitor(resource, resource_name, obj):
     return resource
 
 
-def ignore_preempted(f):
-    def wrapper(*args, **kwargs):
-        try:
-            yield from f(*args, **kwargs)
-        except simpy.Interrupt as i:
-            if isinstance(i.cause, simpy.resources.resource.Preempted):
-                self = args[0]
-                self.info(f'INTERRUPTED: {self.name} - {f.__name__})')
-            else:
-                raise i
-    return wrapper
+def ignore_causes(causes=None):
+    if causes is None:
+        causes = (simpy.resources.resource.Preempted,)
+    elif not isinstance(causes, tuple):
+        causes = tuple([causes])
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            try:
+                yield from f(*args, **kwargs)
+            except simpy.Interrupt as i:
+                if isinstance(i.cause, causes):
+                    self = args[0]
+                    self.info(f'Interrupted: {self.name} - {f.__name__})')
+                else:
+                    raise i
+        return wrapper
+    return decorator
 
 
 def minutes(seconds):

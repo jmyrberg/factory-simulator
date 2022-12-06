@@ -10,9 +10,6 @@ from src.utils import with_resource_monitor, Monitor
 
 class Maintenance(Base):
 
-    issues = Monitor('numerical')
-    workers = Monitor('numerical')
-
     def __init__(self, env, workers=2, name='maintenance'):
         super().__init__(env, name=name)
         self.issues = with_resource_monitor(simpy.PriorityStore(

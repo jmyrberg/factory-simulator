@@ -1,40 +1,65 @@
 """Factory."""
 
 
-import logging
+from typing import Dict
 
 import arrow
 import simpy
-import uuid
 
 from src.base import Base
-from src.utils import with_resource_monitor
+from src.bom import BOM
+from src.containers import ConsumableContainer, MaterialContainer
+from src.consumable import Consumable
+from src.machine import Machine
+from src.maintenance import Maintenance
+from src.material import Material
+from src.operator import Operator
+from src.parser import parse_config
+from src.plotting import plot_factory
+from src.product import Product
+from src.program import Program
+from src.schedules import OperatingSchedule
 
 
 class Factory(Base):
 
-    def __init__(self, env, name='raw-material', capacity=100.0, init=None):
-        """Machine program."""
-        super().__init__(env, name=f'Consumable({name})')
-        self.name = name
-        self.container = with_resource_monitor(simpy.Container(
-            env=env,
-            capacity=capacity,
-            init=init or capacity
-        ), 'container', self)
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        materials: Dict[str, Material] | None = None,
+        consumables: Dict[str, Consumable] | None = None,
+        products: Dict[str, Product] | None = None,
+        containers: Dict[str, ConsumableContainer | MaterialContainer] | None = None,
+        boms: Dict[str, BOM] | None = None,
+        maintenance: Maintenance | None = None,
+        programs: Dict[str, Program] | None = None,
+        schedules: Dict[str, OperatingSchedule] | None = None,
+        machines: Dict[str, Machine] | None = None,
+        operators: Dict[str, Operator] | None = None,
+        name='factory'
+    ) -> None:
+        """Factory."""
+        super().__init__(env, name=name)
+        self.env.factory = self  # Make Factory available everywhere
+        self.materials = materials
+        self.consumables = consumables
+        self.products = products
+        self.containers = containers
+        self.boms = boms
+        self.maintenance = maintenance
+        self.programs = programs
+        self.schedules = schedules
+        self.machines = machines
+        self.operators = operators
 
-    def fill_full(self):
-        fill_amount = self.container.capacity - self.container.level
-        yield from self.fill(fill_amount)
+    @classmethod
+    def from_config(cls, path: str):
+        env = simpy.Environment(arrow.now('Europe/Helsinki').timestamp())
+        cfg = parse_config(env, path)
+        return cls(env, **cfg)
 
-    def fill(self, amount):
-        free = self.container.capacity - self.container.level
-        fill_amount = free if amount > free else amount
-        pct_fill = amount / self.container.capacity
-        yield self.env.timeout(self.hours(2 * pct_fill))
-        yield self.container.put(fill_amount)
-        self.log(f'Filled {fill_amount} / {self.container.capacity}')
+    def run(self, days=1):
+        self.env.run(self.env.now + self.days(days))
 
-    def consume(self, amount):
-        yield self.container.get(amount)
-        self.log(f'Container level: {self.container.level:.2f}')
+    def plot(self):
+        plot_factory(self)

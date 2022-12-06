@@ -9,68 +9,11 @@ import simpy
 
 from croniter import croniter
 
+from src.actions import get_action
 from src.base import Base
 from src.maintenance import Maintenance
 from src.issues import ScheduledMaintenanceIssue
 from src.utils import Monitor
-
-
-def get_action(name, *args, **kwargs):
-    """Action called upon block start."""
-    if 'schedule' in kwargs:
-        raise ValueError('Reserved kwarg "schedule" given in "kwargs"')
-
-    funcs = {
-        'switch-program': _action_switch_program,
-        'maintenance': _action_maintenance
-    }
-    func = partial(funcs[name], *args, **kwargs)
-    args_str = ", ".join(args)
-    kwargs_str = ', '.join(f'{k}={v!r}' for k, v in kwargs.items())
-    func_name = f'{name}('
-    if len(args_str) > 0:
-        func_name += args_str + ', '
-    if len(kwargs_str) > 0:
-        func_name += kwargs_str
-    func_name += ')'
-    func.__name__ = func_name
-    return func
-
-
-def _action_switch_program(block, program_id):
-    # TODO: Simplify block/schedule events
-    block.emit('action_started')
-    machine = block.schedule.machine
-    if machine is None or program_id is None:
-        raise ValueError('Machine or program_id is None')
-
-    programs = [p for p in machine.programs if p.uid == program_id]
-    if len(programs) == 0:
-        raise ValueError(f'Unknown program "{program_id}”')
-    program = programs[0]
-
-    block.env.process(machine._automated_program_switch(program))
-
-    yield block.events['stopped']
-    if (machine is not None
-            and machine.state not in ['off', 'on', 'error']):
-        block.debug('Switching to on')
-        block.env.process(machine._switch_on(priority=-2))
-
-    block.emit('action_stopped')
-
-
-def _action_maintenance(block):
-    # TODO: Simplify block/schedule events
-    block.emit('action_started')
-    machine = block.schedule.machine
-    maintenance = machine.maintenance
-    duration = block.duration_hours * 60 * 60
-    block.debug(f'Maintenance duration: {duration / 60 / 60} hours')
-    issue = ScheduledMaintenanceIssue(machine, duration)
-    block.env.process(maintenance.add_issue(issue))
-    yield block.events['stopped']
-    block.emit('action_stopped')
 
 
 class Block(Base):
@@ -78,14 +21,15 @@ class Block(Base):
     is_active = Monitor()
     action = Monitor()
 
-    def __init__(self, env, action=None, name='block'):
+    def __init__(self, env, action=None, priority=0, name='block'):
         """
-        
+
         action (tuple): Tuple of (action_func, args, kwargs). Assigned machine
             will be automatically passed within kwargs.
         """
         super().__init__(env, name=name)
         self.action = action
+        self.priority = priority
         self.is_active = False
         self.deleted = False
 
@@ -111,16 +55,18 @@ class Block(Base):
     def start(self):
         """Activate block from outside."""
         if self.is_active:
-            self.warning('Tried to start an active block')
+            self.warning('Tried to start an already active block')
         else:
             self.emit('start')
+            self.is_active = True
 
     def stop(self):
         """Deactivate block from outside."""
         if self.is_active:
             self.emit('stop')
+            self.is_active = False
         else:
-            self.warning('Tried to stop an active block')
+            self.warning('Tried to stop already stopped block')
 
     def assign_schedule(self, schedule):
         self.schedule = schedule
@@ -155,6 +101,7 @@ class Block(Base):
                 self.is_active = False
 
                 # Trigger block stop in schedule
+                self.emit('stopped')
                 self.schedule.emit('block_finished', self)
             except simpy.Interrupt:  # = delete
                 self.is_active = False
@@ -165,9 +112,9 @@ class Block(Base):
 
 class CronBlock(Block):
 
-    def __init__(self, env, cron, duration_hours, action=None,
+    def __init__(self, env, cron, duration_hours, action=None, priority=0,
                  name='cron-block'):
-        super().__init__(env, action=action, name=name)
+        super().__init__(env, action=action, priority=priority, name=name)
         self.cron = cron
         self.duration_hours = duration_hours
         self.next_start_dt = None
@@ -216,9 +163,12 @@ class OperatingSchedule(Base):
         self.disabled = False
         self.machine = None
         self.active_block = None
+        self.active_blocks = []
         self.procs = {
-            'schedule': self.env.process(self._schedule()),
-            'on_machine_start': self.env.process(self._on_machine_start())
+            # 'schedule': self.env.process(self._schedule()),
+            'on_machine_start': self.env.process(self._on_machine_start()),
+            'on_block_start': self.env.process(self._on_block_start()),
+            'on_block_finish': self.env.process(self._on_block_finished()),
         }
         self.events = {
             'machine_assigned': self.env.event(),
@@ -243,28 +193,96 @@ class OperatingSchedule(Base):
             # NOTE: Not tested if machine unassigned?
 
             if self.machine and self.active_block:
-                block = self.active_block
-                self.debug(f'Running block "{block}" at machine start')
-                self.env.process(self.active_block.run_action())
+                self.debug(
+                    f'Running block "{self.active_block}" at machine start')
+                try:
+                    self.debug(self.procs['action'].triggered)
+                except:
+                    pass
+                self.procs['action'] = self.env.process(
+                    self.active_block.run_action())
 
-    def _schedule(self):
+    def _on_block_start(self):
         while True:
-            # Wait until block is started
             block = yield self.events['block_started']
-            self.debug(f'Schedule block {block} started')
 
-            # Stop existing block and activate new
-            if self.active_block is not None and self.active_block != block:
-                assert not self.active_block.is_active
-            assert block.is_active
-            self.active_block = block
+            # Add to active blocks
+            if block in self.active_blocks:
+                self.warning(
+                    'Starting block already in active blocks, is this on '
+                    'purpose?')
+            else:
+                self.active_blocks.append(block)
 
-            # Start action
-            if (self.machine is not None
-                    and self.machine.state not in ['off', 'error']):
-                self.env.process(self.active_block.run_action())
+            # Check if needs to change and run the active block
+            needs_to_run = True
+            if self.active_block is None:
+                self.active_block = block
+            elif block.priority <= self.active_block.priority:
+                self.debug(self.active_block)
+                self.debug(self.active_block.priority)
+                self.debug(block)
+                self.debug(block.priority)
+                if self.active_block.is_active:
+                    self.warning(
+                        'Stopping currently active block '
+                        f'"{self.active_block}" due to priorities')
+                    self.active_block.stop()
+                self.active_block = block
+            else:
+                self.warning(
+                    f'Will not set new block "{block}" as active due to '
+                    'priorities')
+                needs_to_run = False
 
-            yield self.events['block_finished']
-            self.active_block = None
+            if needs_to_run:
+                self.procs['action'] = self.env.process(
+                    self.active_block.run_action())
 
-            self.debug(f'Schedule block {block} finished')
+    def _on_block_finished(self):
+        while True:
+            block = yield self.events['block_finished']
+            if block in self.active_blocks:
+                self.active_blocks.remove(block)
+            else:
+                self.warning(
+                    f'Block "{block}" finished, but not in active blocks: '
+                    f'{self.active_blocks}')
+
+            if len(self.active_blocks) == 0:
+                self.active_block = None
+
+    # def _schedule(self):
+    #     prev_block = None
+    #     while True:
+    #         # Wait until block is started
+    #         block = yield self.events['block_started']
+    #         self.debug(f'Schedule block "{block}" started')
+
+    #         # If two blocks active at the same time, run based on prio
+    #         if (prev_block and prev_block.is_active
+    #                 and block.is_active):
+    #             self.warning(
+    #                 f'Two active blocks "{block}" and "{self.active_block}" '
+    #                 'at the same time, will run with the one with lower '
+    #                 'priority'
+    #             )
+    #             if self.active_block.priority < block.priority:
+    #                 self.debug(f'Keeping current block "{self.active_block}"')
+    #             else:
+    #                 self.warning(
+    #                     'Stopping "{self.active_block}" per priority')
+    #                 self.active_block.stop()
+    #                 self.active_block = block
+    #         else:
+    #             self.active_block = block
+
+    #         # Actual block action is run only if new_prio >= prev_prio
+    #         self.procs['action'] = self.env.process(
+    #             self.active_block.run_action())
+
+    #         yield self.events['block_finished']
+    #         prev_block = self.active_block
+    #         self.active_block = None  # For reporting
+
+    #         self.debug(f'Schedule block "{self.active_block}" finished')

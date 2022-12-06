@@ -15,10 +15,16 @@ class ProductionIssue(BaseIssue):
     needs_maintenance = False
 
 
-class LowConsumableLevelIssue(ProductionIssue):
-    def __init__(self, consumable, **kwargs):
+class ContainerMissingIssue(ProductionIssue):
+    def __init__(self, material_or_consumable, **kwargs):
         super().__init__(**kwargs)
-        self.consumable = consumable
+        self.material_or_consumable = material_or_consumable
+
+
+class LowContainerLevelIssue(ProductionIssue):
+    def __init__(self, containers, **kwargs):
+        super().__init__(**kwargs)
+        self.containers = containers
 
 
 class OverheatIssue(BaseIssue):
