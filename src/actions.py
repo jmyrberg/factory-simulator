@@ -12,7 +12,7 @@ from croniter import croniter
 from src.base import Base
 from src.maintenance import Maintenance
 from src.issues import ScheduledMaintenanceIssue
-from src.utils import Monitor
+from src.utils import AttributeMonitor
 
 
 def get_action(name, *args, **kwargs):

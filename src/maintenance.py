@@ -5,20 +5,15 @@ import simpy
 
 from src.base import Base
 from src.issues import OtherCustomerIssue, ScheduledMaintenanceIssue
-from src.utils import with_resource_monitor, Monitor
+from src.utils import with_obj_monitor, AttributeMonitor
 
 
 class Maintenance(Base):
 
     def __init__(self, env, workers=2, name='maintenance'):
         super().__init__(env, name=name)
-        self.issues = with_resource_monitor(simpy.PriorityStore(
-            env=env
-        ), 'issues', self)
-        self.workers = with_resource_monitor(simpy.PreemptiveResource(
-            env=env,
-            capacity=workers
-        ), 'workers', self)
+        self.issues = simpy.PriorityStore(env)
+        self.workers = simpy.PreemptiveResource(env=env, capacity=workers)
 
         self.events = {
             'added_issue': self.env.event(),

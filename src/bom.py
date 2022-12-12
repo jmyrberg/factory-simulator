@@ -1,14 +1,7 @@
-"""Machine programs."""
+"""Machine bill of materials."""
 
-
-import logging
-
-import arrow
-import simpy
-import uuid
 
 from src.base import Base
-from src.utils import with_resource_monitor
 
 
 class BOM(Base):

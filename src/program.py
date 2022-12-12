@@ -11,23 +11,24 @@ from src.causes import BaseCause, UnknownCause
 from src.containers import get_from_containers, quantity_exists_in_containers,\
     MaterialContainer, ConsumableContainer
 from src.issues import LowContainerLevelIssue, ContainerMissingIssue
-from src.utils import Monitor
+from src.product import ProductBatch
+from src.utils import AttributeMonitor
 
 
 class Program(Base):
     # TODO: Create a couple of different kinds of programs (Batch/Maintenance)
 
-    state = Monitor()
+    state = AttributeMonitor()
 
     def __init__(self, uid, env, bom, name='program'):
         """Machine program."""
         super().__init__(env, name=name)
         self.uid = uid
         self.state = 'off'
+        self.batch_id = None
         self.bom = bom
 
         self.locked_containers = defaultdict(list)
-        self.batch = {}
         self.events = {
             'program_started': self.env.event(),
             'program_stopped': self.env.event(),
@@ -99,6 +100,7 @@ class Program(Base):
         yield from self._check_inputs(machine, duration)
 
         # Run or interrupt
+        self.batch_id = uuid.uuid4().hex
         start_time = self.env.now
         try:
             yield self.env.timeout(duration)
@@ -120,11 +122,22 @@ class Program(Base):
         # Unlock allows others to use the containers again
         end_time = self.env.now
         time_spent = end_time - start_time
-        try:
-            self._consume_inputs(time_spent)
-        except simpy.Interrupt as i:
-            self.error('SHOULD NOT HAPPEN!')
-            raise i
+        self._consume_inputs(time_spent)
+
+        for obj, d in self.bom.products.items():
+            containers = machine.find_containers(obj)
+            for container in containers:
+                batch = ProductBatch(
+                    env=self.env,
+                    product=obj,
+                    batch_id=self.batch_id,
+                    quantity=d['quantity'],
+                    details={
+                        'start_time': start_time,
+                        'end_time': end_time
+                    }
+                )
+                container.put(batch)
 
         self.state = 'off'
         self.emit('program_stopped')

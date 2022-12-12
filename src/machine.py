@@ -7,21 +7,22 @@ import simpy
 from src.base import Base
 from src.causes import BaseCause, ManualSwitchOffCause, \
     ManualStopProductionCause, AutomatedStopProductionCause
-from src.containers import ConsumableContainer, MaterialContainer
+from src.containers import ConsumableContainer, MaterialContainer, \
+    ProductContainer
 from src.issues import ProductionIssue, OverheatIssue
 from src.program import Program
 from src.schedules import OperatingSchedule
-from src.utils import ignore_causes, Monitor, with_resource_monitor
+from src.utils import ignore_causes, AttributeMonitor, with_obj_monitor
 
 
 class Machine(Base):
 
-    state = Monitor()
-    program = Monitor()
-    production_interruption_ongoing = Monitor()
-    maintenance_log = Monitor('numerical', lambda x: len(x))
-    temperature = Monitor('numerical')
-    room_temperature = Monitor('numerical')
+    state = AttributeMonitor()
+    program = AttributeMonitor()
+    production_interruption_ongoing = AttributeMonitor()
+    maintenance_log = AttributeMonitor('numerical', lambda x: len(x))
+    temperature = AttributeMonitor('numerical')
+    room_temperature = AttributeMonitor('numerical')
 
     def __init__(self, env, containers=None, schedule=None, programs=None,
                  default_program=None, maintenance=None, name='machine'):
@@ -34,14 +35,8 @@ class Machine(Base):
             on -> error: 
         """
         super().__init__(env, name=name)
-        self.ui = with_resource_monitor(  # user actions
-            simpy.PreemptiveResource(env),
-            'ui', self
-        )
-        self.execute = with_resource_monitor(  # commands
-            simpy.PreemptiveResource(env),
-            'execute', self
-        )
+        self.ui = simpy.PreemptiveResource(env)
+        self.execute = simpy.PreemptiveResource(env)
         self.state = 'off'
         self.states = ['off', 'on', 'production', 'error']
         self.schedule = schedule
@@ -444,7 +439,7 @@ class Machine(Base):
             results = yield ui | self.env.timeout(0)
             if ui not in results:
                 self.debug(
-                    'UI is not responsive, will not try to go "production"')
+                    'UI is not responsive, will not try to "switch_program"')
                 return
 
             self.env.process(self._switch_program(
@@ -629,7 +624,11 @@ class Machine(Base):
             elif (isinstance(container, ConsumableContainer)
                     and container.consumable == obj):
                 filtered_containers.append(container)
-            else:
-                ValueError(f'Unknown container type "{type(obj)}"')
+            elif (isinstance(container, ProductContainer)
+                    and container.product == obj):
+                filtered_containers.append(container)
+
+        if len(filtered_containers) == 0:
+            raise ValueError(f'No containers found for "{obj}"')
 
         return filtered_containers

@@ -7,7 +7,8 @@ from copy import deepcopy
 
 from src.actions import get_action
 from src.bom import BOM
-from src.containers import ConsumableContainer, MaterialContainer
+from src.containers import ConsumableContainer, MaterialContainer, \
+    ProductContainer
 from src.consumable import Consumable
 from src.machine import Machine
 from src.maintenance import Maintenance
@@ -136,7 +137,7 @@ def make_maintenance(env, cfg_list):
     return out
 
 
-def make_containers(env, cfg_list, materials, consumables):
+def make_containers(env, cfg_list, materials, consumables, products):
     cfg_list = deepcopy(cfg_list)
     out = {}
     for cfg in cfg_list:
@@ -148,6 +149,9 @@ def make_containers(env, cfg_list, materials, consumables):
         elif content_id in consumables:
             consumable = consumables[content_id]
             out[id_] = ConsumableContainer(env, consumable, **cfg)
+        elif content_id in products:
+            product = products[content_id]
+            out[id_] = ProductContainer(env, product, **cfg)
 
     return out
 
@@ -178,7 +182,7 @@ def parse_config(env, path: str):
     consumables = cfg2obj(env, Consumable, cfg['consumables'])
     products = cfg2obj(env, Product, cfg['products'])
     containers = make_containers(
-        env, cfg['containers'], materials, consumables)
+        env, cfg['containers'], materials, consumables, products)
     boms = make_boms(env, cfg['boms'], materials, consumables, products)
     maintenance = make_maintenance(env, cfg['maintenance'])
     programs = make_programs(env, cfg['programs'], boms)

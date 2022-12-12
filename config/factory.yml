@@ -12,6 +12,10 @@ consumables:
   - id: consumable2
     name: Consumable2
 
+products:
+  - id: product1
+    name: Product1
+
 containers:
   - id: materialcontainer
     name: MaterialContainer(Material1)
@@ -25,10 +29,9 @@ containers:
     name: ConsumableContainer(Consumable1)
     content: consumable1
     capacity: 100
-
-products:
-  - id: product1
-    name: Product1
+  - id: productcontainer
+    name: ProductContainer(Product1)
+    content: product1
 
 boms:
   - id: bom1
@@ -40,7 +43,7 @@ boms:
         consumption: 10
     products:
       - id: product1
-        quantity: 1
+        quantity: 10
 
   - id: bom2
     name: "My bill of material 2"
@@ -100,14 +103,18 @@ maintenance:
   - id: maintenance1
     name: Maintenance
 
-
 machines:
   - id: machine1
     name: Machine
     schedule: schedule1
     programs: [program1, program2]
     default-program: program1
-    containers: [materialcontainer, materialcontainer2, consumablecontainer]
+    containers: [
+      materialcontainer,
+      materialcontainer2,
+      consumablecontainer,
+      productcontainer
+    ]
     maintenance: maintenance1
 
 operators:

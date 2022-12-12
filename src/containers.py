@@ -3,13 +3,14 @@
 
 import logging
 
-from copy import deepcopy
+from typing import List
 
 import simpy
-import uuid
 
 from src.base import Base
-from src.utils import with_resource_monitor, Monitor
+from src.material import MaterialBatch
+from src.product import ProductBatch
+from src.utils import with_obj_monitor, AttributeMonitor, MonitoredList
 
 
 logger = logging.getLogger(__name__)
@@ -18,18 +19,22 @@ logger = logging.getLogger(__name__)
 class ConsumableContainer(Base):
 
     def __init__(self, env, consumable, capacity=100.0, init=None,
-                 name='consumable-container'):
+                 fill_rate=50, name='consumable-container'):
+        """Container with continuous contents."""
         super().__init__(env, name=name)
         self.consumable = consumable
+        self.init = init
+        self.fill_rate = fill_rate  # units per hour
+
         self.lock = simpy.PriorityResource(env)
-        self.container = with_resource_monitor(simpy.Container(
+        self.container = self.with_monitor(simpy.Container(
             env=env,
             capacity=capacity,
             init=init or capacity
-        ), 'container', self)
+        ), name=name)
 
     @property
-    def free(self):
+    def available(self):
         return self.capacity - self.level
 
     @property
@@ -43,51 +48,58 @@ class ConsumableContainer(Base):
     def put_full(self):
         yield from self.put(self.free)
 
-    def put(self, quantity):
-        quantity = self.free if quantity > self.free else quantity
-        pct_fill = quantity / self.capacity
-        yield self.env.timeout(self.hours(2 * pct_fill))
-        yield self.container.put(quantity)
-        self.log(f'Filled {quantity:.2f} / {self.capacity:.2f}')
+    def put(self, quantity: float) -> float:
+        """Yields."""
+        if quantity > self.free:
+            old_quantity = quantity
+            quantity = self.free
+            self.warning(f'Adjusted quantity from {old_quantity} to '
+                         f'{quantity} to fit the container')
+
+        duration_hours = quantity / self.fill_rate
+
+        # TODO: Fill in discrete timepoints
+        self.debug('Filling container with {quantity:.2f} in '
+                   f'{duration_hours:.2f} hours')
+        yield self.env.timeout(self.hours(duration_hours))
+        self.container.put(quantity)
+
+        self.debug(f'New level after put: '
+                   f'{self.level:.2f} / {self.capacity:.2f}')
         return quantity
 
-    def get(self, quantity):
+    def get(self, quantity: float) -> float:
+        """Returns."""
+        if quantity > self.level:
+            raise ValueError(f'{quantity=} > {self.level=}')
+
         self.container.get(quantity)
-        self.log(f'Container level: {self.level:.2f}')
+
+        self.debug(f'New level after get: '
+                   f'{self.level:.2f} / {self.capacity:.2f}')
         return quantity
-
-
-class MaterialBatch(Base):
-
-    def __init__(self, env, material, quantity, material_id=None,
-                 name='material-batch'):
-        super().__init__(env, name=name)
-        self.material = material
-        self.quantity = quantity
-        if material_id is None:
-            self.material_id = (
-                f'{material.name.replace(" ", "").upper()}'
-                f'{uuid.uuid4().hex[:8].upper()}')
-        else:
-            self.material_id = material_id
 
 
 class MaterialContainer(Base):
 
-    latest_material_id = Monitor()
-    _level = Monitor('numerical')
-    batches = Monitor('numerical', lambda x: len(x))
+    latest_material_id = AttributeMonitor()
+    _level = AttributeMonitor('numerical')
+    batches = AttributeMonitor('numerical', lambda x: len(x))
 
-    def __init__(self, env, material, capacity=100.0, init=None,
+    def __init__(self, env, material, capacity=100.0, fill_rate=50, init=None,
                  name='material-container'):
+        """Container with discrete contents."""
         super().__init__(env, name=name)
         self.material = material
-        self.batches = []
         self.capacity = capacity
+        self.fill_rate = fill_rate
+        self.init = init
 
+        # Internal
         self.lock = simpy.PriorityResource(env)
         self.latest_material_id = None
 
+        self.batches = []
         if init is None:
             batch = MaterialBatch(env, material, quantity=capacity,
                                   name='initial-material-batch')
@@ -96,7 +108,7 @@ class MaterialContainer(Base):
         self._level = self.level
 
     @property
-    def free(self):
+    def available(self):
         return self.capacity - self.level
 
     @property
@@ -106,11 +118,16 @@ class MaterialContainer(Base):
     def put_full(self):
         yield from self.put(self.free)
 
-    def put(self, batch_or_quantity):
+    def put(self, batch_or_quantity: MaterialBatch | float) -> MaterialBatch:
+        """Yields."""
         if isinstance(batch_or_quantity, MaterialBatch):
             batch = batch_or_quantity
         else:
-            batch = MaterialBatch(self.env, self.material, batch_or_quantity)
+            batch = MaterialBatch(
+                env=self.env,
+                material=self.material,
+                quantity=batch_or_quantity
+            )
 
         if batch.quantity > self.free:
             batch.quantity = self.free
@@ -118,8 +135,12 @@ class MaterialContainer(Base):
                          f'{batch.quantity} to fit the container')
 
         if batch.quantity > 0:
-            pct_fill = batch.quantity / self.capacity
-            yield self.env.timeout(self.hours(2 * pct_fill))
+            duration_hours = batch.quantity / self.fill_rate
+            # TODO: Fill in discrete timepoints
+            self.debug('Filling container with {quantity:.2f} in '
+                       f'{duration_hours:.2f} hours')
+            yield self.env.timeout(self.hours(duration_hours))
+
             self.batches.insert(0, batch)
             self.batches = self.batches  # Log
         else:
@@ -127,25 +148,33 @@ class MaterialContainer(Base):
 
         self._level = self.level
 
-    def get(self, quantity):
+        self.debug(f'New level after put: '
+                   f'{self.level:.2f} / {self.capacity:.2f}')
+
+        return batch
+
+    def get(self, quantity: float) -> List[MaterialBatch]:
+        """Returns."""
         if quantity > self.level:
             raise ValueError(f'{quantity=} > {self.level=}')
 
         fetch_batches = []
         fetch_quantity = 0
         while len(self.batches) > 0:
+            # Take one batch at a time
             batch = self.batches.pop()
             self.batches = self.batches  # Log
+
             missing_quantity = quantity - fetch_quantity
             new_quantity = fetch_quantity + batch.quantity
-            if new_quantity > quantity:
+
+            if new_quantity > quantity:  # Need to split the batch
                 # Remove from batch
                 batch.quantity -= missing_quantity
-                self.debug(f'Removed {missing_quantity:.2f} from batch')
                 self.batches.append(batch)
                 self.batches = self.batches  # Log
 
-                # ...and add to fetch
+                # ...and add to fetch batch
                 fetch_quantity += missing_quantity
                 fetch_batch = MaterialBatch(
                     env=batch.env,
@@ -156,18 +185,10 @@ class MaterialContainer(Base):
                 )
                 fetch_batches.append(fetch_batch)
                 self.latest_material_id = fetch_batch.material_id
-
-                # Consume time
-                pct_fill = missing_quantity / self.capacity
-                # yield self.env.timeout(self.hours(1 * pct_fill))
-            else:
+            else:  # Last batch
                 fetch_quantity += batch.quantity
                 fetch_batches.append(batch)
                 self.latest_material_id = batch.material_id
-
-                # Consume time
-                pct_fill = missing_quantity / self.capacity
-                # yield self.env.timeout(self.hours(1 * pct_fill))
 
             if fetch_quantity == quantity:
                 break
@@ -175,12 +196,89 @@ class MaterialContainer(Base):
             if fetch_quantity > quantity:
                 raise ValueError('Should not happen')
 
-        self.log(f'Material container level: {self.level:.2f}')
         self._level = self.level
+        self.debug(f'New level after get: '
+                   f'{self.level:.2f} / {self.capacity:.2f}')
+
+        return fetch_batches
+
+
+class ProductContainer(Base):
+
+    def __init__(self, env, product, name='product-container'):
+        """Container with discrete contents."""
+        super().__init__(env, name=name)
+        self.product = product
+        self.batches = self.with_monitor(
+            MonitoredList(),
+            post=[
+                ('n_batches', lambda x: len(x)),
+                ('quantity', lambda x: sum(b.quantity for b in x)),
+                ('last_batch_id', lambda x: x[-1].batch_id if len(x) > 0 else None, 'categorical')
+            ],
+            name='batches'
+        )
+
+    @property
+    def level(self):
+        if len(self.batches) > 0:
+            return sum(b.quantity for b in self.batches)
+        else:
+            return 0
+
+    def put(self, batch: ProductBatch):
+        self.batches.append(batch)
+        self.debug(f'Added batch "{batch}" to {self}')
+
+    def get(self, quantity: float) -> List[ProductBatch]:
+        if quantity > self.level:
+            raise ValueError(f'{quantity=} > {self.level=}')
+
+        fetch_batches = []
+        fetch_quantity = 0
+        while len(self.batches) > 0:
+            # Take one batch at a time
+            batch = self.batches.pop()
+            self.batches = self.batches  # Log
+
+            missing_quantity = quantity - fetch_quantity
+            new_quantity = fetch_quantity + batch.quantity
+
+            if new_quantity > quantity:  # Need to split the batch
+                # Remove from batch
+                batch.quantity -= missing_quantity
+                self.batches.append(batch)
+                self.batches = self.batches  # Log
+
+                # ...and add to fetch batch
+                fetch_quantity += missing_quantity
+                fetch_batch = ProductBatch(
+                    env=batch.env,
+                    batch_id=batch.batch_id,
+                    product=batch.product,
+                    quantity=missing_quantity,
+                    name=batch.name
+                )
+                fetch_batches.append(fetch_batch)
+            else:  # Last batch
+                fetch_quantity += batch.quantity
+                fetch_batches.append(batch)
+
+            if fetch_quantity == quantity:
+                break
+
+            if fetch_quantity > quantity:
+                raise ValueError('Should not happen')
+
+        self._level = self.level
+        self.debug(f'New level after get: '
+                   f'{self.level:.2f} / {self.capacity:.2f}')
+
         return fetch_batches
 
 
 def quantity_exists_in_containers(quantity, containers):
+    """Checks if the quantity exists in the given containers."""
     container_quantity = sum(c.level for c in containers)
     if container_quantity < quantity:
         logger.debug(f'{container_quantity=:.2f} < {quantity=:.2f}')
@@ -189,7 +287,7 @@ def quantity_exists_in_containers(quantity, containers):
 
 
 def get_from_containers(quantity, containers, strategy='first'):
-    """Get quantity from containers.
+    """Get quantity from a number of containers.
 
     Note: No yields should be used here.
     """
@@ -204,10 +302,11 @@ def get_from_containers(quantity, containers, strategy='first'):
         for container in containers:
             to_get = min(container.level, left)
             got = container.get(to_get)
+
             if isinstance(got, list):  # Material
                 batches.append(got)
                 total += sum(b.quantity for b in got)
-            else:
+            else:  # Consumable
                 total += got
 
             left = quantity - total

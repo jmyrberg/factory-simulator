@@ -2,24 +2,19 @@
 
 
 from datetime import datetime, timedelta
-from functools import partial, wraps, update_wrapper
 
-import arrow
 import simpy
 
 from croniter import croniter
 
-from src.actions import get_action
 from src.base import Base
-from src.maintenance import Maintenance
-from src.issues import ScheduledMaintenanceIssue
-from src.utils import Monitor
+from src.utils import AttributeMonitor
 
 
 class Block(Base):
 
-    is_active = Monitor()
-    action = Monitor()
+    is_active = AttributeMonitor()
+    action = AttributeMonitor()
 
     def __init__(self, env, action=None, priority=0, name='block'):
         """
@@ -151,7 +146,7 @@ class CronBlock(Block):
 
 class OperatingSchedule(Base):
 
-    active_block = Monitor()
+    active_block = AttributeMonitor()
 
     """Controls the "program" -attribute of a machine"""
     def __init__(self, env, blocks=None, name='operating-schedule'):
@@ -219,10 +214,6 @@ class OperatingSchedule(Base):
             if self.active_block is None:
                 self.active_block = block
             elif block.priority <= self.active_block.priority:
-                self.debug(self.active_block)
-                self.debug(self.active_block.priority)
-                self.debug(block)
-                self.debug(block.priority)
                 if self.active_block.is_active:
                     self.warning(
                         'Stopping currently active block '
@@ -251,38 +242,3 @@ class OperatingSchedule(Base):
 
             if len(self.active_blocks) == 0:
                 self.active_block = None
-
-    # def _schedule(self):
-    #     prev_block = None
-    #     while True:
-    #         # Wait until block is started
-    #         block = yield self.events['block_started']
-    #         self.debug(f'Schedule block "{block}" started')
-
-    #         # If two blocks active at the same time, run based on prio
-    #         if (prev_block and prev_block.is_active
-    #                 and block.is_active):
-    #             self.warning(
-    #                 f'Two active blocks "{block}" and "{self.active_block}" '
-    #                 'at the same time, will run with the one with lower '
-    #                 'priority'
-    #             )
-    #             if self.active_block.priority < block.priority:
-    #                 self.debug(f'Keeping current block "{self.active_block}"')
-    #             else:
-    #                 self.warning(
-    #                     'Stopping "{self.active_block}" per priority')
-    #                 self.active_block.stop()
-    #                 self.active_block = block
-    #         else:
-    #             self.active_block = block
-
-    #         # Actual block action is run only if new_prio >= prev_prio
-    #         self.procs['action'] = self.env.process(
-    #             self.active_block.run_action())
-
-    #         yield self.events['block_finished']
-    #         prev_block = self.active_block
-    #         self.active_block = None  # For reporting
-
-    #         self.debug(f'Schedule block "{self.active_block}" finished')

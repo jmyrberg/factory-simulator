@@ -9,6 +9,8 @@ from datetime import timedelta
 import arrow
 import numpy as np
 
+from src.utils import with_obj_monitor
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,16 @@ class Base:
 
     def __repr__(self):
         return self.name
+
+    def with_monitor(self, obj, pre=None, post=None, methods=None, name=None):
+        return with_obj_monitor(
+            obj=self,
+            attr_obj=obj,
+            pre=pre,
+            post=post,
+            methods=methods,
+            name=name
+        )
 
     def emit(self, name, value=None):
         self.debug(f'Event - "{name}"')
@@ -78,6 +90,10 @@ class Base:
     def now_dt(self):
         return arrow.get(self.env.now).to(self.tz)
 
+    @property
+    def dtfmt(self):
+        return '%Y-%m-%d %H:%M:%S'
+
     def time_until_time(self, clock_str):
         hour, minutes = clock_str.split(':')
         if self.time_passed_today(clock_str):
@@ -100,6 +116,9 @@ class Base:
             return False
         else:
             return True
+
+    def days_until(self, weekday):
+        return (weekday - self.now_dt.weekday() + 7) % 7
 
     def time_until(self, target_dt):
         if target_dt < self.now_dt:
