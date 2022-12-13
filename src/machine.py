@@ -129,8 +129,8 @@ class Machine(Base):
                 )
 
             self.room_temperature = season_avg + delta_hour + delta_machine
-            # self.debug(f'Room temperature: {self.room_temperature}')
-            yield self.env.timeout(60)
+            self.debug(f'Room temperature: {self.room_temperature}')
+            yield self.env.timeout(5)
 
     def _temperature_monitor_proc(self):
         yield self.env.timeout(2)
