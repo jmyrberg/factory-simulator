@@ -1,4 +1,8 @@
+arrow
 asyncua
+croniter
 numpy
 pandas
+plotly
+pyyaml
 simpy

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-ENV_NAME=machine-simulator
+ENV_NAME=factory-simulator
 PYTHON_VERSION=3.10
 
 conda create -y -n $ENV_NAME python=$PYTHON_VERSION &&
