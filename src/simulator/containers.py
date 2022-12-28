@@ -9,7 +9,7 @@ import simpy
 from src.simulator.base import Base
 from src.simulator.material import MaterialBatch
 from src.simulator.product import ProductBatch
-from src.simulator.utils import AttributeMonitor, MonitoredList
+from src.simulator.utils import MonitoredList
 
 logger = logging.getLogger(__name__)
 

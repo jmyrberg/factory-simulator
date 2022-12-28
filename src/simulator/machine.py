@@ -17,8 +17,6 @@ from src.simulator.containers import (
     ProductContainer,
 )
 from src.simulator.issues import OverheatIssue, ProductionIssue
-from src.simulator.program import Program
-from src.simulator.schedules import OperatingSchedule
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
 

@@ -9,14 +9,12 @@ import simpy
 from src.simulator.base import Base
 from src.simulator.causes import BaseCause, UnknownCause
 from src.simulator.containers import (
-    ConsumableContainer,
-    MaterialContainer,
     get_from_containers,
     quantity_exists_in_containers,
 )
 from src.simulator.issues import ContainerMissingIssue, LowContainerLevelIssue
 from src.simulator.product import ProductBatch
-from src.simulator.utils import AttributeMonitor, MonitoredDict
+from src.simulator.utils import AttributeMonitor
 
 
 class Program(Base):

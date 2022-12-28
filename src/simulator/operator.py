@@ -6,11 +6,7 @@ import simpy
 from src.simulator.base import Base
 from src.simulator.causes import WorkStoppedCause
 from src.simulator.issues import LowContainerLevelIssue, UnknownIssue
-from src.simulator.utils import (
-    AttributeMonitor,
-    ignore_causes,
-    with_obj_monitor,
-)
+from src.simulator.utils import AttributeMonitor, ignore_causes
 
 
 class Operator(Base):

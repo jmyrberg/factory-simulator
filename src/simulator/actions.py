@@ -1,17 +1,9 @@
 """Schedules."""
 
 
-from datetime import datetime, timedelta
-from functools import partial, update_wrapper, wraps
+from functools import partial
 
-import arrow
-import simpy
-from croniter import croniter
-
-from src.simulator.base import Base
 from src.simulator.issues import ScheduledMaintenanceIssue
-from src.simulator.maintenance import Maintenance
-from src.simulator.utils import AttributeMonitor
 
 
 def get_action(name, *args, **kwargs):

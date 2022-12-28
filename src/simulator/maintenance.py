@@ -5,7 +5,6 @@ import simpy
 
 from src.simulator.base import Base
 from src.simulator.issues import OtherCustomerIssue, ScheduledMaintenanceIssue
-from src.simulator.utils import AttributeMonitor, with_obj_monitor
 
 
 class Maintenance(Base):

@@ -1,3 +1,8 @@
+[tool.autoflake]
+in-place = true
+remove-all-unused-imports = true
+remove-unused-variables = true
+
 [tool.isort]
 profile = "black"
 line_length = 79
