@@ -2,15 +2,13 @@
 
 
 from collections import UserDict, UserList
-from functools import wraps, partial
+from functools import partial, wraps
 from typing import Callable, Tuple
 
 import simpy
-
 from simpy.resources.resource import Preempted
 
 from src.simulator.causes import BaseCause
-
 
 InterruptType = Preempted | BaseCause
 CauseType = Tuple[InterruptType] | InterruptType | None
@@ -19,28 +17,30 @@ CauseType = Tuple[InterruptType] | InterruptType | None
 class AttributeMonitor:
     """Monitor class attributes."""
 
-    def __init__(self, dtype='categorical', value_func=None):
+    def __init__(self, dtype="categorical", value_func=None):
         self.dtype = dtype
         self.value_func = value_func
 
     def __set_name__(self, owner, name):
         self.public_name = name
-        self.private_name = f'_{name}'
+        self.private_name = f"_{name}"
 
     def __get__(self, obj, objtype=None):
         value = getattr(obj, self.private_name)
         return value
 
     def __set__(self, obj, value):
-        if hasattr(self, 'dtype'):
-            obj.data[self.dtype].append((
-                obj.now_dt.datetime,
-                obj.name,
-                self.public_name,
-                self.value_func(value) if self.value_func else value
-            ))
+        if hasattr(self, "dtype"):
+            obj.data[self.dtype].append(
+                (
+                    obj.now_dt.datetime,
+                    obj.name,
+                    self.public_name,
+                    self.value_func(value) if self.value_func else value,
+                )
+            )
         else:
-            obj.warning('Unknown dtype')
+            obj.warning("Unknown dtype")
         setattr(obj, self.private_name, value)
 
 
@@ -60,12 +60,19 @@ def patch_obj(obj, pre=None, post=None, methods=None):
     """Patch custom classes for data collection."""
     # Methods to be patched, if not given
     if methods is None and isinstance(obj, list):
-        methods = ['insert', 'append', '__setitem__', '__delitem__', 'remove']
+        methods = ["insert", "append", "__setitem__", "__delitem__", "remove"]
     elif methods is None and isinstance(obj, dict):
-        methods = ['__setitem__', '__delitem__', 'pop', 'update', 'popitem',
-                   'setdefault', 'clear']
+        methods = [
+            "__setitem__",
+            "__delitem__",
+            "pop",
+            "update",
+            "popitem",
+            "setdefault",
+            "clear",
+        ]
     elif methods is None:
-        methods = ['put', 'get', 'request', 'release']
+        methods = ["put", "get", "request", "release"]
 
     def get_wrapper(func):
         @wraps(func)
@@ -79,6 +86,7 @@ def patch_obj(obj, pre=None, post=None, methods=None):
                 post(obj)
 
             return ret
+
         return wrapper
 
     # For dict and list, we must patch custom classes before init
@@ -103,8 +111,9 @@ def patch_obj(obj, pre=None, post=None, methods=None):
     return obj
 
 
-def with_obj_monitor(obj, attr_obj, pre=None, post=None,
-                     methods=None, name=None):
+def with_obj_monitor(
+    obj, attr_obj, pre=None, post=None, methods=None, name=None
+):
     """Monitor any object."""
     name = name or str(attr_obj)
 
@@ -113,38 +122,41 @@ def with_obj_monitor(obj, attr_obj, pre=None, post=None,
         for tup in key_funcs:
             if len(tup) == 2:
                 key, func = tup
-                dtype = 'numerical'  # = default
+                dtype = "numerical"  # = default
             elif len(tup) == 3:
                 key, func, dtype = tup
 
-            obj.data[dtype].append((
-                obj.now_dt.datetime, obj.name,
-                f'{name}_{key}', func(attr_obj)
-            ))
+            obj.data[dtype].append(
+                (
+                    obj.now_dt.datetime,
+                    obj.name,
+                    f"{name}_{key}",
+                    func(attr_obj),
+                )
+            )
 
     # Functions to apply
     if pre is not None or post is not None:
         pre = partial(mfunc, key_funcs=pre) if pre is not None else None
         post = partial(mfunc, key_funcs=post) if post is not None else None
     elif isinstance(attr_obj, simpy.Container):
-        pre = partial(mfunc, key_funcs=[('pre_level', lambda x: x.level)])
-        post = partial(mfunc, key_funcs=[('post_level', lambda x: x.level)])
+        pre = partial(mfunc, key_funcs=[("pre_level", lambda x: x.level)])
+        post = partial(mfunc, key_funcs=[("post_level", lambda x: x.level)])
     elif isinstance(attr_obj, simpy.Resource):
         pre = None
-        post = partial(mfunc, key_funcs=[
-            ('post_queue', lambda x: len(x.queue)),
-            ('post_users', lambda x: len(x.users)),
-        ])
+        post = partial(
+            mfunc,
+            key_funcs=[
+                ("post_queue", lambda x: len(x.queue)),
+                ("post_users", lambda x: len(x.users)),
+            ],
+        )
     elif isinstance(attr_obj, (simpy.Store, simpy.PriorityStore)):
         pre = None
-        post = partial(mfunc, key_funcs=[
-            ('n_items', lambda x: len(x.items))
-        ])
+        post = partial(mfunc, key_funcs=[("n_items", lambda x: len(x.items))])
     elif isinstance(attr_obj, (list)):
         pre = None
-        post = partial(mfunc, key_funcs=(
-            ('length', lambda x: len(x.items))
-        ))
+        post = partial(mfunc, key_funcs=(("length", lambda x: len(x.items))))
     else:
         raise NotImplementedError(f'Unknown type "{type(attr_obj)}"')
 
@@ -178,8 +190,11 @@ def ignore_causes(causes: CauseType = None) -> Callable:
                 if isinstance(i.cause, causes):
                     self = args[0]
                     self.debug(
-                        f'Interrupted process "{f.__name__}" due to "{i}"')
+                        f'Interrupted process "{f.__name__}" due to "{i}"'
+                    )
                 else:
                     raise i
+
         return wrapper
+
     return decorator

@@ -1,16 +1,20 @@
 """Machine programs."""
 
 
+import uuid
 from collections import defaultdict
 
 import simpy
-import uuid
 
 from src.simulator.base import Base
 from src.simulator.causes import BaseCause, UnknownCause
-from src.simulator.containers import get_from_containers, \
-    quantity_exists_in_containers, MaterialContainer, ConsumableContainer
-from src.simulator.issues import LowContainerLevelIssue, ContainerMissingIssue
+from src.simulator.containers import (
+    ConsumableContainer,
+    MaterialContainer,
+    get_from_containers,
+    quantity_exists_in_containers,
+)
+from src.simulator.issues import ContainerMissingIssue, LowContainerLevelIssue
 from src.simulator.product import ProductBatch
 from src.simulator.utils import AttributeMonitor, MonitoredDict
 
@@ -20,32 +24,26 @@ class Program(Base):
 
     state = AttributeMonitor()
 
-    def __init__(
-        self,
-        uid: str,
-        env,
-        bom,
-        name='program'
-    ) -> None:
+    def __init__(self, uid: str, env, bom, name="program") -> None:
         """Machine program."""
         super().__init__(env, name=name)
         self.uid = uid
         self.bom = bom
 
         # Internal states
-        self.state = 'off'
+        self.state = "off"
         self.batch_id = None
         self.consumption = self.with_monitor(
             {},
             post=[  # TODO: Use UIDs instead of name
                 (obj.name, lambda x: x[obj.name] if obj.name in x else 0)
-                for mtype in ['consumables', 'materials']
+                for mtype in ["consumables", "materials"]
                 for obj, d in getattr(self.bom, mtype).items()
             ],
-            name='consumption'
+            name="consumption",
         )
         # TODO: Do all of these default settings more concisely
-        for mtype in ['consumables', 'materials']:
+        for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 self.consumption[obj.name] = 0
         self.product_quantity = self.with_monitor(
@@ -54,30 +52,30 @@ class Program(Base):
                 (obj.name, lambda x: x[obj.name] if obj.name in x else 0)
                 for obj, d in self.bom.products.items()
             ],
-            name='product_quantity'
+            name="product_quantity",
         )
         for obj, d in self.bom.products.items():
             self.product_quantity[obj.name] = 0
         self.latest_material_id = self.with_monitor(
             {},
             post=[
-                (obj.name, lambda x: x[obj.name] if obj.name in x else 'null')
+                (obj.name, lambda x: x[obj.name] if obj.name in x else "null")
                 for obj, d in self.bom.materials.items()
-            ]
+            ],
         )
         for obj, d in self.bom.materials.items():
-            self.latest_material_id[obj.name] = 'null'
+            self.latest_material_id[obj.name] = "null"
 
         self.locked_containers = defaultdict(list)
         self.events = {
-            'program_started': self.env.event(),
-            'program_stopped': self.env.event(),
-            'program_interrupted': self.env.event(),
-            'program_issue': self.env.event()
+            "program_started": self.env.event(),
+            "program_stopped": self.env.event(),
+            "program_interrupted": self.env.event(),
+            "program_issue": self.env.event(),
         }
 
     def _check_inputs(self, machine, expected_duration, lock=True):
-        for mtype in ['consumables', 'materials']:
+        for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 # Containers exist?
                 containers = machine.find_containers(obj)
@@ -85,11 +83,11 @@ class Program(Base):
                     raise simpy.Interrupt(ContainerMissingIssue(obj))
 
                 # Target quantity exists?
-                quantity = expected_duration * d['consumption']
+                quantity = expected_duration * d["consumption"]
                 if not quantity_exists_in_containers(quantity, containers):
-                    self.warning('Will not produce due low container level')
-                    self.emit('program_issue')
-                    self.state = 'issue'
+                    self.warning("Will not produce due low container level")
+                    self.emit("program_issue")
+                    self.state = "issue"
                     self._unlock_containers()
                     raise simpy.Interrupt(LowContainerLevelIssue(containers))
 
@@ -99,22 +97,23 @@ class Program(Base):
                         request = container.lock.request()
                         yield request
                         self.locked_containers[obj].append(
-                            (container, request))
+                            (container, request)
+                        )
                         self.debug(f'Locked "{container}" for "{self}"')
 
     def _consume_inputs(self, time_spent, unlock=True):
-        self.debug(f'Consuming inputs for {time_spent=:.2f}')
-        for mtype in ['consumables', 'materials']:
+        self.debug(f"Consuming inputs for {time_spent=:.2f}")
+        for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 if obj not in self.locked_containers:
                     raise ValueError(f'Impossible to consume "{obj}"')
 
                 containers, requests = zip(*self.locked_containers[obj])
 
-                quantity = time_spent * d['consumption']
+                quantity = time_spent * d["consumption"]
                 batches, total = get_from_containers(quantity, containers)
                 # TODO: Save batches + total
-                self.debug(f'Consumed {total:.2f} of {obj.name}')
+                self.debug(f"Consumed {total:.2f} of {obj.name}")
 
                 # Log consumption
                 if obj.name not in self.consumption:
@@ -123,7 +122,7 @@ class Program(Base):
                 self.consumption[obj.name] += total
 
                 # Log material id
-                if mtype == 'materials':
+                if mtype == "materials":
                     self.latest_material_id[obj.name] = batches[-1].material_id
 
         if unlock:  # Needs to happen after consumption ^
@@ -141,8 +140,8 @@ class Program(Base):
             del self.locked_containers[obj]
 
     def run(self, machine):
-        self.emit('program_started')
-        self.state = 'on'
+        self.emit("program_started")
+        self.state = "on"
 
         duration = 60 * 15  # TODO: Sample
 
@@ -155,17 +154,18 @@ class Program(Base):
         start_time = self.env.now
         try:
             yield self.env.timeout(duration)
-            self.state = 'success'
+            self.state = "success"
         except simpy.Interrupt as i:
-            self.info(f'Program interrupted: {i.cause}')
-            self.emit('program_interrupted')
+            self.info(f"Program interrupted: {i.cause}")
+            self.emit("program_interrupted")
 
             if isinstance(i.cause, BaseCause) and not i.cause.force:
                 time_left = start_time + duration - self.env.now
                 self.debug(
-                    f'Waiting for current batch to finish in {time_left:.0f}')
+                    f"Waiting for current batch to finish in {time_left:.0f}"
+                )
                 yield self.env.timeout(time_left)
-                self.state = 'success'
+                self.state = "success"
             else:
                 raise UnknownCause(i.cause)
 
@@ -182,11 +182,8 @@ class Program(Base):
                     env=self.env,
                     product=obj,
                     batch_id=self.batch_id,
-                    quantity=d['quantity'],
-                    details={
-                        'start_time': start_time,
-                        'end_time': end_time
-                    }
+                    quantity=d["quantity"],
+                    details={"start_time": start_time, "end_time": end_time},
                 )
                 container.put(batch)
 
@@ -195,5 +192,5 @@ class Program(Base):
                     self.product_quantity[obj.name] = 0
                 self.product_quantity[obj.name] += batch.quantity
 
-        self.state = 'off'
-        self.emit('program_stopped')
+        self.state = "off"
+        self.emit("program_stopped")

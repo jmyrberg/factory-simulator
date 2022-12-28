@@ -78,8 +78,8 @@ schedules:
           name: switch-program
           kwargs:
             program_id: program1
-      - name: Cron(15th at 06:00, M)
-        cron: 00 06 15 * *
+      - name: Cron(24 at 06:00, M)
+        cron: 00 06 24 * *
         duration-hours: 24
         priority: -1
         action:
@@ -109,12 +109,13 @@ machines:
     schedule: schedule1
     programs: [program1, program2]
     default-program: program1
-    containers: [
-      materialcontainer,
-      materialcontainer2,
-      consumablecontainer,
-      productcontainer
-    ]
+    containers:
+      [
+        materialcontainer,
+        materialcontainer2,
+        consumablecontainer,
+        productcontainer,
+      ]
     maintenance: maintenance1
 
 operators:

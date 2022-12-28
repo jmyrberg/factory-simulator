@@ -2,7 +2,6 @@
 
 
 import asyncio
-
 from typing import Dict
 
 import arrow
@@ -10,8 +9,8 @@ import simpy
 
 from src.simulator.base import Base
 from src.simulator.bom import BOM
-from src.simulator.containers import ConsumableContainer, MaterialContainer
 from src.simulator.consumable import Consumable
+from src.simulator.containers import ConsumableContainer, MaterialContainer
 from src.simulator.machine import Machine
 from src.simulator.maintenance import Maintenance
 from src.simulator.material import Material
@@ -24,21 +23,21 @@ from src.simulator.schedules import OperatingSchedule
 
 
 class Factory(Base):
-
     def __init__(
         self,
         env: simpy.Environment | simpy.RealtimeEnvironment,
         materials: Dict[str, Material] | None = None,
         consumables: Dict[str, Consumable] | None = None,
         products: Dict[str, Product] | None = None,
-        containers: Dict[str, ConsumableContainer | MaterialContainer] | None = None,
+        containers: Dict[str, ConsumableContainer | MaterialContainer]
+        | None = None,
         boms: Dict[str, BOM] | None = None,
         maintenance: Maintenance | None = None,
         programs: Dict[str, Program] | None = None,
         schedules: Dict[str, OperatingSchedule] | None = None,
         machines: Dict[str, Machine] | None = None,
         operators: Dict[str, Operator] | None = None,
-        name='factory'
+        name="factory",
     ) -> None:
         """Factory."""
         super().__init__(env, name=name)
@@ -56,7 +55,7 @@ class Factory(Base):
 
     @classmethod
     def from_config(cls, path: str, real: bool = False):
-        start = arrow.now('Europe/Helsinki').timestamp()
+        start = arrow.now("Europe/Helsinki").timestamp()
         if real:
             env = simpy.RealtimeEnvironment(start)
         else:

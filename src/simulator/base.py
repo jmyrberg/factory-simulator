@@ -2,7 +2,6 @@
 
 
 import logging
-
 from collections import defaultdict
 from datetime import timedelta
 
@@ -11,16 +10,14 @@ import numpy as np
 
 from src.simulator.utils import with_obj_monitor
 
-
 logger = logging.getLogger(__name__)
 
 
 class Base:
-
     def __init__(self, env, *args, **kwargs):
         self.env = env
-        self.name = kwargs.get('name', 'Unknown')
-        self.tz = 'Europe/Helsinki'
+        self.name = kwargs.get("name", "Unknown")
+        self.tz = "Europe/Helsinki"
         self.data = defaultdict(lambda: [])
 
     def __repr__(self):
@@ -33,7 +30,7 @@ class Base:
             pre=pre,
             post=post,
             methods=methods,
-            name=name
+            name=name,
         )
 
     def emit(self, name, value=None):
@@ -42,21 +39,21 @@ class Base:
         self.events[name] = self.env.event()
 
     def debug(self, message):
-        self.log(message, level='debug')
+        self.log(message, level="debug")
 
     def info(self, message):
-        self.log(message, level='info')
+        self.log(message, level="info")
 
     def warning(self, message):
-        self.log(message, level='warning')
+        self.log(message, level="warning")
 
     def error(self, message):
-        self.log(message, level='error')
+        self.log(message, level="error")
 
-    def log(self, message, level='info'):
+    def log(self, message, level="info"):
         ts = arrow.get(self.env.now).to(self.tz)
-        ts_hki = ts.format('YYYY-MM-DD HH:mm:ss')
-        getattr(logger, level)(f'{ts_hki} - {self.name} - {message}')
+        ts_hki = ts.format("YYYY-MM-DD HH:mm:ss")
+        getattr(logger, level)(f"{ts_hki} - {self.name} - {message}")
 
     def minutes(self, seconds):
         return 60 * seconds
@@ -92,24 +89,21 @@ class Base:
 
     @property
     def dtfmt(self):
-        return '%Y-%m-%d %H:%M:%S'
+        return "%Y-%m-%d %H:%M:%S"
 
     def time_until_time(self, clock_str):
-        hour, minutes = clock_str.split(':')
+        hour, minutes = clock_str.split(":")
         if self.time_passed_today(clock_str):
             days = 1
         else:
             days = 0
         target_dt = self.now_dt.replace(
-            hour=int(hour),
-            minute=int(minutes),
-            second=0,
-            microsecond=0
+            hour=int(hour), minute=int(minutes), second=0, microsecond=0
         ) + timedelta(days=days)
         return self.time_until(target_dt)
 
     def time_passed_today(self, clock_str):
-        hour, minutes = clock_str.split(':')
+        hour, minutes = clock_str.split(":")
         if self.hour < int(hour):
             return False
         elif self.hour == int(hour) and self.minute < int(minutes):
@@ -122,7 +116,7 @@ class Base:
 
     def time_until(self, target_dt):
         if target_dt < self.now_dt:
-            raise ValueError(f'{target_dt} < {self.now_dt}')
+            raise ValueError(f"{target_dt} < {self.now_dt}")
         return (target_dt - self.now_dt).total_seconds()
 
     def uni(self, low, high):

@@ -2,7 +2,6 @@
 
 Code for simulating a factory floor.
 
-
 ## Architecture
 
 ```mermaid

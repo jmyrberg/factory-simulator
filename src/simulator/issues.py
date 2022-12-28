@@ -5,14 +5,15 @@ class BaseIssue(BaseException):
     code = 100
 
     def __init__(self, name=None):
-        self.name = name or ''
+        self.name = name or ""
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.name!r})'
+        return f"{self.__class__.__name__}({self.name!r})"
 
 
 class ProductionIssue(BaseIssue):
     """Issue arisen from production process."""
+
     priority = 3
     needs_maintenance = False
 
@@ -35,6 +36,7 @@ class LowContainerLevelIssue(ProductionIssue):
 
 class OverheatIssue(BaseIssue):
     """Machine is overheating."""
+
     code = 100 + 3
     priority = 5
     needs_maintenance = False
@@ -47,6 +49,7 @@ class OverheatIssue(BaseIssue):
 
 class OtherCustomerIssue(BaseIssue):
     """Issue from another customer to the maintenance team."""
+
     code = 100 + 4
     priority = 5
     needs_maintenance = True
@@ -54,6 +57,7 @@ class OtherCustomerIssue(BaseIssue):
 
 class ScheduledMaintenanceIssue(BaseIssue):
     """Issue from another customer to the maintenance team."""
+
     code = 100 + 5
     priority = 1
     needs_maintenance = True
