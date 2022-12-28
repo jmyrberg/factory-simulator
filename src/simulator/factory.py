@@ -19,6 +19,7 @@ from src.simulator.plotting import plot_factory
 from src.simulator.product import Product
 from src.simulator.program import Program
 from src.simulator.schedules import OperatingSchedule
+from src.simulator.sensors import Sensor
 
 
 class Factory(Base):
@@ -36,7 +37,9 @@ class Factory(Base):
         schedules: Dict[str, OperatingSchedule] | None = None,
         machines: Dict[str, Machine] | None = None,
         operators: Dict[str, Operator] | None = None,
-        name="factory",
+        sensors: Dict[str, Sensor] | None = None,
+        name: str = "factory",
+        uid: str | None = None,
     ) -> None:
         """Factory."""
         super().__init__(env, name=name)
@@ -51,6 +54,8 @@ class Factory(Base):
         self.schedules = schedules
         self.machines = machines
         self.operators = operators
+        self.sensors = sensors
+        self.uid = uid
 
     @classmethod
     def from_config(cls, path: str, real: bool = False):

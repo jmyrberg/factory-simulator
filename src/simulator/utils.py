@@ -17,12 +17,13 @@ CauseType = Tuple[InterruptType] | InterruptType | None
 class AttributeMonitor:
     """Monitor class attributes."""
 
-    def __init__(self, dtype="categorical", value_func=None):
+    def __init__(self, dtype="categorical", value_func=None, name=None):
         self.dtype = dtype
         self.value_func = value_func
+        self.name = name
 
     def __set_name__(self, owner, name):
-        self.public_name = name
+        self.public_name = name if self.name is None else self.name
         self.private_name = f"_{name}"
 
     def __get__(self, obj, objtype=None):

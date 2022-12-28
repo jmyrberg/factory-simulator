@@ -92,6 +92,7 @@ def plot_factory(factory):
         "maintenance",
         "programs",
         "schedules",
+        "sensors",
     ]
     for obj_type in obj_types:
         if hasattr(factory, obj_type):

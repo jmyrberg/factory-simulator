@@ -20,6 +20,7 @@ from src.simulator.operator import Operator
 from src.simulator.product import Product
 from src.simulator.program import Program
 from src.simulator.schedules import CronBlock, OperatingSchedule
+from src.simulator.sensors import get_sensor_by_type
 
 
 def cfg2obj(env, obj, cfg_list):
@@ -177,6 +178,19 @@ def make_operators(env, cfg_list, machines):
     return out
 
 
+def make_sensors(env, cfg_list):
+    cfg_list = deepcopy(cfg_list)
+    out = {}
+    for cfg in cfg_list:
+        id_ = cfg.pop("id")
+        sensor_type = cfg.pop("type")
+        kwargs = cfg.get("kwargs") or {}
+        cls = get_sensor_by_type(sensor_type)
+        out[id_] = cls(env, **kwargs)
+
+    return out
+
+
 def parse_config(env, path: str):
     """Parse factory configuration file."""
     # Read YAML
@@ -198,6 +212,7 @@ def parse_config(env, path: str):
         env, cfg["machines"], containers, programs, schedules, maintenance
     )
     operators = make_operators(env, cfg["operators"], machines)
+    sensors = make_sensors(env, cfg["sensors"])
 
     # Output only when dictionary is not empty
     out = {
@@ -211,8 +226,11 @@ def parse_config(env, path: str):
         "schedules": schedules,
         "machines": machines,
         "operators": operators,
+        "sensors": sensors,
     }
     if "name" in cfg:
         out["name"] = cfg["name"]
+    if "id" in cfg:
+        out["uid"] = cfg["id"]
 
     return out
