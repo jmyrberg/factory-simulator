@@ -61,6 +61,7 @@ class Program(Base):
                 (obj.name, lambda x: x[obj.name] if obj.name in x else "null")
                 for obj, d in self.bom.materials.items()
             ],
+            name="latest_batch_id",
         )
         for obj, d in self.bom.materials.items():
             self.latest_batch_id[obj.name] = "null"

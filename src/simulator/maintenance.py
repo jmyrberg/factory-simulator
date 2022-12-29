@@ -51,14 +51,14 @@ class Maintenance(Base):
                 with machine.execute.request(-99) as executor:
                     yield executor
 
-                    start_time = self.now_dt
                     real_duration = duration + self.minutes(self.iuni(-60, 60))
                     yield self.env.timeout(real_duration)
 
             self.env.process(machine.press_on())
             yield machine.events["switched_on"]
 
-            machine.log_maintenance(start_time)
+            # TODO: Implement maintenance log machine side
+            # machine.log_maintenance(start_time)
         else:
             self.warning(f"Unknown issue: {issue}")
             yield self.env.timeout(self.hours(self.iuni(3, 6)))
