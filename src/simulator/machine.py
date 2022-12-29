@@ -10,11 +10,6 @@ from src.simulator.causes import (
     ManualStopProductionCause,
     ManualSwitchOffCause,
 )
-from src.simulator.containers import (
-    ConsumableContainer,
-    MaterialContainer,
-    ProductContainer,
-)
 from src.simulator.issues import OverheatIssue, ProductionIssue
 from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
@@ -586,27 +581,3 @@ class Machine(Base):
         else:
             self.warning("No issues to be cleared")
             return
-
-    def find_containers(self, obj):
-        filtered_containers = []
-        for container in self.containers:
-            if (
-                isinstance(container, MaterialContainer)
-                and container.material == obj
-            ):
-                filtered_containers.append(container)
-            elif (
-                isinstance(container, ConsumableContainer)
-                and container.consumable == obj
-            ):
-                filtered_containers.append(container)
-            elif (
-                isinstance(container, ProductContainer)
-                and container.product == obj
-            ):
-                filtered_containers.append(container)
-
-        if len(filtered_containers) == 0:
-            raise ValueError(f'No containers found for "{obj}"')
-
-        return filtered_containers

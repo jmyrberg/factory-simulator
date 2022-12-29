@@ -13,15 +13,23 @@ class Material(Base):
 
 class MaterialBatch(Base):
     def __init__(
-        self, env, material, quantity, material_id=None, name="material-batch"
+        self,
+        env,
+        material,
+        quantity,
+        batch_id=None,
+        created_ts=None,
+        name="material-batch",
     ):
         super().__init__(env, name=name)
         self.material = material
         self.quantity = quantity
-        if material_id is None:
-            self.material_id = (
+        self.created_ts = created_ts or self.now_dt
+        if batch_id is None:
+            self.batch_id = (
                 f'{material.name.replace(" ", "").upper()}'
-                f"{uuid.uuid4().hex[:8].upper()}"
+                f"-{self.created_ts.strftime('%Y%m%d%H%M%S')}"
+                f"-{uuid.uuid4().hex[:8].upper()}"
             )
         else:
-            self.material_id = material_id
+            self.batch_id = batch_id

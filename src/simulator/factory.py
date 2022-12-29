@@ -71,6 +71,25 @@ class Factory(Base):
         else:
             self.warning(f"Tried to add existing sensor {sensor.uid}")
 
+    def find_uid(self, uid):
+        for attr in [
+            "materials",
+            "consumables",
+            "products",
+            "machines",
+            "operators",
+            "containers",
+            "maintenance",
+            "programs",
+            "schedules",
+            "sensors",
+        ]:
+            objs = getattr(self, attr)
+            if isinstance(objs, dict) and uid in objs:
+                return objs[uid]
+
+        raise KeyError(f'UID "{uid}" not found')
+
     @classmethod
     def from_config(cls, path: str, real: bool = False):
         start = arrow.now("Europe/Helsinki").timestamp()

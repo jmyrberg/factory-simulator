@@ -3,7 +3,14 @@
 
 from functools import partial
 
+from src.simulator.consumable import Consumable
+from src.simulator.containers import (
+    find_containers_by_type,
+    put_into_consumable_containers,
+    put_into_material_containers,
+)
 from src.simulator.issues import ScheduledMaintenanceIssue
+from src.simulator.material import Material, MaterialBatch
 
 
 def get_action(name, *args, **kwargs):
@@ -14,6 +21,7 @@ def get_action(name, *args, **kwargs):
     funcs = {
         "switch-program": _action_switch_program,
         "maintenance": _action_maintenance,
+        "procurement": _action_procurement,
     }
     func = partial(funcs[name], *args, **kwargs)
     # TODO: Cleanup the mess below
@@ -27,6 +35,35 @@ def get_action(name, *args, **kwargs):
     func_name += ")"
     func.__name__ = func_name
     return func
+
+
+def _action_procurement(block, content_uid, quantity):
+    # TODO: Fail probability
+    block.emit("action_started")
+    # Find material or consumable object
+    factory = block.env.factory
+    content = factory.find_uid(content_uid)
+    containers = find_containers_by_type(content, factory.containers.values())
+    yield block.env.timeout(60)  # TODO: Do properly and kill active block
+    if isinstance(content, Material):
+        batch = MaterialBatch(
+            env=block.env,
+            material=content,
+            quantity=quantity,
+            created_ts=block.now_dt.shift(hours=block.iuni(-90, -7)),
+        )
+        _, total_put = yield from put_into_material_containers(
+            batches=[batch], containers=containers, strategy="first"
+        )
+    elif isinstance(content, Consumable):
+        total_put = yield from put_into_consumable_containers(
+            quantity=quantity, containers=containers, strategy="first"
+        )
+    else:
+        raise ValueError(
+            f"Unknown content type '{type(content)}' for procurement"
+        )
+    block.emit("action_stopped", value=total_put)
 
 
 def _action_switch_program(block, program_id):

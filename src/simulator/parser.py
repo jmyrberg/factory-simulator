@@ -19,7 +19,7 @@ from src.simulator.material import Material
 from src.simulator.operator import Operator
 from src.simulator.product import Product
 from src.simulator.program import Program
-from src.simulator.schedules import CronBlock, OperatingSchedule
+from src.simulator.schedules import CronBlock, OperatingSchedule, Schedule
 from src.simulator.sensors import get_sensor_by_type
 
 
@@ -88,6 +88,7 @@ def make_schedules(env, cfg_list, programs):
     out = {}
     for cfg in cfg_list:
         id_ = cfg.pop("id")
+        schedule_type = cfg.pop("type", "default")
         blocks_ = []
         for block in cfg.pop("blocks", []):
             block_cfg = {}
@@ -106,7 +107,13 @@ def make_schedules(env, cfg_list, programs):
 
             block_obj = CronBlock(env, action=action, **block_cfg)
             blocks_.append(block_obj)
-        out[id_] = OperatingSchedule(env, blocks=blocks_, **cfg)
+
+        if schedule_type == "default":
+            out[id_] = Schedule(env, blocks=blocks_, **cfg)
+        elif schedule_type == "operating":
+            out[id_] = OperatingSchedule(env, blocks=blocks_, **cfg)
+        else:
+            raise ValueError(f"Unknown schedule type '{schedule_type}'")
 
     return out
 

@@ -56,9 +56,9 @@ def get_program_vars(program):
             "func": lambda: program.product_quantity.get(name, 0),
             "val": 0,
         }
-    for name in program.latest_material_id.keys():
+    for name in program.latest_batch_id.keys():
         d[f"{name}.LatestMaterialId"] = {
-            "func": lambda: program.latest_material_id.get(name, "null"),
+            "func": lambda: program.latest_batch_id.get(name, "null"),
             "val": "null",
         }
 

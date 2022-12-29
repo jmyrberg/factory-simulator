@@ -9,6 +9,7 @@ import simpy
 from src.simulator.base import Base
 from src.simulator.causes import BaseCause, UnknownCause
 from src.simulator.containers import (
+    find_containers_by_type,
     get_from_containers,
     quantity_exists_in_containers,
 )
@@ -54,7 +55,7 @@ class Program(Base):
         )
         for obj, d in self.bom.products.items():
             self.product_quantity[obj.name] = 0
-        self.latest_material_id = self.with_monitor(
+        self.latest_batch_id = self.with_monitor(
             {},
             post=[
                 (obj.name, lambda x: x[obj.name] if obj.name in x else "null")
@@ -62,7 +63,7 @@ class Program(Base):
             ],
         )
         for obj, d in self.bom.materials.items():
-            self.latest_material_id[obj.name] = "null"
+            self.latest_batch_id[obj.name] = "null"
 
         self.locked_containers = defaultdict(list)
         self.events = {
@@ -76,7 +77,7 @@ class Program(Base):
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 # Containers exist?
-                containers = machine.find_containers(obj)
+                containers = find_containers_by_type(obj, machine.containers)
                 if len(containers) == 0:
                     raise simpy.Interrupt(ContainerMissingIssue(obj))
 
@@ -121,7 +122,7 @@ class Program(Base):
 
                 # Log material id
                 if mtype == "materials":
-                    self.latest_material_id[obj.name] = batches[-1].material_id
+                    self.latest_batch_id[obj.name] = batches[-1].batch_id
 
         if unlock:  # Needs to happen after consumption ^
             self._unlock_containers()
@@ -174,7 +175,7 @@ class Program(Base):
         self._consume_inputs(time_spent)
 
         for obj, d in self.bom.products.items():
-            containers = machine.find_containers(obj)
+            containers = find_containers_by_type(obj, machine.containers)
             for container in containers:
                 batch = ProductBatch(
                     env=self.env,

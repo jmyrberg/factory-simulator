@@ -147,19 +147,17 @@ class CronBlock(Block):
         self.stop()
 
 
-class OperatingSchedule(Base):
+class Schedule(Base):
+    """Run actions when scheduled."""
 
     active_block = AttributeMonitor()
 
-    """Controls the "program" -attribute of a machine"""
-
-    def __init__(self, env, blocks=None, name="operating-schedule"):
+    def __init__(self, env, blocks=None, name="schedule"):
         super().__init__(env, name=name)
         self.blocks = blocks
         for block in self.blocks:
             block.assign_schedule(self)
 
-        self.machine = None
         self.active_block = None
         self.active_blocks = self.with_monitor(
             MonitoredList(),
@@ -167,40 +165,14 @@ class OperatingSchedule(Base):
             name="active_blocks",
         )
         self.procs = {
-            # 'schedule': self.env.process(self._schedule()),
-            "on_machine_start": self.env.process(self._on_machine_start()),
             "on_block_start": self.env.process(self._on_block_start()),
             "on_block_finish": self.env.process(self._on_block_finished()),
         }
         self.events = {
-            "machine_assigned": self.env.event(),
             "block_started": self.env.event(),
             "block_finished": self.env.event(),
             "block_deleted": self.env.event(),
         }
-
-    def assign_machine(self, machine):
-        self.machine = machine
-        self.emit("machine_assigned")
-        yield self.env.timeout(0)
-
-    def _on_machine_start(self):
-        while True:
-            if self.machine is None:
-                yield self.events["machine_assigned"]
-
-            if self.machine is not None:
-                yield self.machine.events["switched_on_from_off"]
-
-            # NOTE: Not tested if machine unassigned?
-
-            if self.machine and self.active_block:
-                self.debug(
-                    f'Running block "{self.active_block}" at machine start'
-                )
-                self.procs["action"] = self.env.process(
-                    self.active_block.run_action()
-                )
 
     def _on_block_start(self):
         while True:
@@ -252,3 +224,39 @@ class OperatingSchedule(Base):
 
             if len(self.active_blocks) == 0:
                 self.active_block = None
+
+
+class OperatingSchedule(Schedule):
+    """Controls the "program" -attribute of a machine."""
+
+    def __init__(self, env, blocks=None, name="operating-schedule"):
+        super().__init__(env, blocks=blocks, name=name)
+
+        self.machine = None
+        self.procs["on_machine_start"] = self.env.process(
+            self._on_machine_start()
+        )
+        self.events["machine_assigned"] = self.env.event()
+
+    def assign_machine(self, machine):
+        self.machine = machine
+        self.emit("machine_assigned")
+        yield self.env.timeout(0)
+
+    def _on_machine_start(self):
+        while True:
+            if self.machine is None:
+                yield self.events["machine_assigned"]
+
+            if self.machine is not None:
+                yield self.machine.events["switched_on_from_off"]
+
+            # NOTE: Not tested if machine unassigned?
+
+            if self.machine and self.active_block:
+                self.debug(
+                    f'Running block "{self.active_block}" at machine start'
+                )
+                self.procs["action"] = self.env.process(
+                    self.active_block.run_action()
+                )

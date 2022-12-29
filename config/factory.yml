@@ -69,8 +69,9 @@ programs:
     bom: bom2
 
 schedules:
-  - id: schedule1
-    name: Schedule
+  - id: operating-schedule
+    name: OperatingSchedule
+    type: operating
     blocks:
       - name: Cron(8:30, 1)
         cron: 30 8 * * *
@@ -99,6 +100,18 @@ schedules:
           name: switch-program
           kwargs:
             program_id: program2
+  - id: procurement-schedule
+    name: ProcurementSchedule
+    type: default
+    blocks:
+      - name: Cron(8:00, material1)
+        cron: 00 8 * * *
+        duration-hours: 0.25
+        action:
+          name: procurement
+          kwargs:
+            content_uid: material1
+            quantity: 10
 
 maintenance:
   - id: maintenance1
@@ -107,7 +120,7 @@ maintenance:
 machines:
   - id: machine1
     name: Machine
-    schedule: schedule1
+    schedule: operating-schedule
     programs: [program1, program2]
     default-program: program1
     containers:

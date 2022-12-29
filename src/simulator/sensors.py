@@ -161,7 +161,7 @@ class RoomTemperatureSensor(Sensor):
             n_machines = len(machine_temps)
             duration_hours = self.interval / 60 / 60
             delta_temp = machine_temp - prev_temp
-            delta_machine = delta_temp * n_machines * 10 * duration_hours
+            delta_machine = delta_temp * n_machines * duration_hours
 
         delta_h = self.hourly_delta[self.now_dt.hour]
         noise = self.norm(0, 0.5)

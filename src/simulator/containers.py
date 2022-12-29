@@ -109,13 +109,13 @@ class MaterialContainer(Base):
         # Internal
         self.lock = self.with_monitor(simpy.PriorityResource(env), name="lock")
         self.batches = self.with_monitor(
-            MonitoredList(),
+            [],
             post=[
                 ("n_batches", lambda x: len(x)),
                 ("quantity", lambda x: sum(b.quantity for b in x)),
                 (
-                    "last_material_id",
-                    lambda x: x[-1].material_id if len(x) > 0 else None,
+                    "last_batch_id",
+                    lambda x: x[-1].batch_id if len(x) > 0 else None,
                     "categorical",
                 ),
             ],
@@ -150,17 +150,17 @@ class MaterialContainer(Base):
             )
 
         if batch.quantity > self.free:
-            batch.quantity = self.free
             self.warning(
-                f"Adjusted batch quantity from {batch.quantity} to "
-                f"{batch.quantity} to fit the container"
+                f"Adjusting batch quantity from {batch.quantity} to "
+                f"{self.free} to fit the container"
             )
+            batch.quantity = self.free
 
         if batch.quantity > 0:
             duration_hours = batch.quantity / self.fill_rate
             # TODO: Fill in discrete timepoints
             self.debug(
-                "Filling container with {quantity:.2f} in "
+                f"Filling container with {batch.quantity:.2f} in "
                 f"{duration_hours:.2f} hours"
             )
             yield self.env.timeout(self.hours(duration_hours))
@@ -202,7 +202,7 @@ class MaterialContainer(Base):
                     env=batch.env,
                     material=batch.material,
                     quantity=missing_quantity,
-                    material_id=batch.material_id,
+                    batch_id=batch.batch_id,
                     name=batch.name,
                 )
                 fetch_batches.append(fetch_batch)
@@ -340,3 +340,79 @@ def get_from_containers(quantity, containers, strategy="first"):
     else:
         # TODO: Take evenly from all containers etc.
         raise ValueError(f'Unknown strategy "{strategy}"')
+
+
+def put_into_material_containers(batches, containers, strategy="first"):
+    batches_put = []
+    total_put = 0
+    total_to_put = sum(batch.quantity for batch in batches)
+    if strategy == "first":
+        for batch in batches:
+            for container in containers:
+                if container.free == 0:
+                    continue
+
+                put_batch = yield from container.put(batch)
+                batches_put.append(put_batch)
+                total_put += put_batch.quantity
+
+                if put_batch.quantity == batch.quantity:  # All fit
+                    break
+                else:  # Remainders
+                    batch.quantity -= put_batch.quantity
+
+        if total_put < total_to_put:
+            logger.warning(
+                "Could not fit everything into material containers "
+                f"({total_put} < {total_to_put})"
+            )
+
+    return batches_put, total_put
+
+
+def put_into_consumable_containers(quantity, containers, strategy="first"):
+    total_put = 0
+    total_to_put = quantity
+    if strategy == "first":
+        for container in containers:
+            if container.free == 0:
+                continue
+
+            put_quantity = yield from container.put(quantity)
+            total_put += put_quantity
+
+            if total_put == total_to_put:
+                break
+
+    if total_put < total_to_put:
+        logger.warning(
+            "Could not fit everything into consumable containers "
+            f"({total_put} < {total_to_put})"
+        )
+
+    return total_put
+
+
+def find_containers_by_type(content, containers, raising=True):
+    filtered_containers = []
+    for container in containers:
+        if (
+            isinstance(container, MaterialContainer)
+            and container.material == content
+        ):
+            filtered_containers.append(container)
+        elif (
+            isinstance(container, ConsumableContainer)
+            and container.consumable == content
+        ):
+            filtered_containers.append(container)
+        elif (
+            isinstance(container, ProductContainer)
+            and container.product == content
+        ):
+            filtered_containers.append(container)
+
+    if raising and len(filtered_containers) == 0:
+        raise ValueError(f'No containers found for "{content}"')
+
+    return filtered_containers
