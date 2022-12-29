@@ -1,7 +1,6 @@
 """Machine in a factory."""
 
 
-import arrow
 import simpy
 
 from src.simulator.base import Base
@@ -17,6 +16,7 @@ from src.simulator.containers import (
     ProductContainer,
 )
 from src.simulator.issues import OverheatIssue, ProductionIssue
+from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
 
@@ -26,9 +26,7 @@ class Machine(Base):
     program = AttributeMonitor()
     production_interruption_ongoing = AttributeMonitor()
     production_interrupt_code = AttributeMonitor()
-    # TODO: Into separate module (sensor)
     temperature = AttributeMonitor("numerical")
-    room_temperature = AttributeMonitor("numerical")
 
     def __init__(
         self,
@@ -65,11 +63,9 @@ class Machine(Base):
         self.production_interruption_ongoing = False
         self.production_interrupt_code = 0
 
-        # Statistics
-        # TODO: Convert these to "Sensor" class or sth
-        self.temperature = None
-        self.room_temperature = None
-
+        self.sensors = [
+            MachineTemperatureSensor(env, self),
+        ]
         self.events = {
             # Program
             "switching_program": self.env.event(),
@@ -110,63 +106,14 @@ class Machine(Base):
         }
         self.procs = {
             "init": self.env.process(self._init()),
-            "room_temperature": self.env.process(
-                self._room_temperature_proc()
-            ),
-            "temperature": self.env.process(self._temperature_proc()),
-            "temperature_monitor": self.env.process(
-                self._temperature_monitor_proc()
-            ),
+            # "temperature_monitor": self.env.process(
+            #     self._temperature_monitor_proc()
+            # ),
         }
 
     def _init(self):
         if self.schedule is not None:
             yield self.env.process(self.schedule.assign_machine(self))
-
-    def _room_temperature_proc(self):
-        hourly_delta = [
-            -2.5,
-            -2.75,
-            -3,
-            -2.5,
-            -2,
-            -1.5,
-            -1,
-            0,  # 0-7
-            1,
-            2,
-            3,
-            3.1,
-            3.25,
-            3.5,
-            3.1,
-            2.5,  # 8-15
-            2,
-            1,
-            0,
-            -1,
-            -1.5,
-            -1.75,
-            -2,
-            -2.25,  # 16-23
-        ]
-        while True:
-            ts = arrow.get(self.env.now).to("Europe/Helsinki")
-            if 4 <= ts.month and ts.month <= 8:
-                season_avg = 22
-            else:
-                season_avg = 18
-
-            delta_hour = hourly_delta[ts.hour] + self.norm(0, 0.5)
-
-            # Follow machine temp as well
-            delta_machine = 0
-            if self.temperature is not None:
-                delta_machine = (self.temperature - self.room_temperature) / 5
-
-            self.room_temperature = season_avg + delta_hour + delta_machine
-            self.debug(f"Room temperature: {self.room_temperature}")
-            yield self.env.timeout(5)
 
     def _temperature_monitor_proc(self):
         yield self.env.timeout(2)
@@ -177,49 +124,6 @@ class Machine(Base):
                 yield self.env.process(self._trigger_issue(issue))
             elif self.temperature > 70:
                 self.warning(f"Temperature very high: {self.temperature}")
-
-    def _temperature_proc(self):
-        # TODO: Sometime very high temperatures (check Kaggle for reference)
-        # TODO: Overheat monitoring process
-        # TODO: Cleanup
-        # TODO: Collect data
-        yield self.env.timeout(1)
-        self.temperature = self.room_temperature
-        last_change_time = self.env.now
-        time_resolution = 60
-        change_per_hour = {
-            "production": 10,
-            "on": 1,
-            "idle": -3,
-            "off": -3,
-            "error": -5,
-        }
-        while True:
-            # Wait for state change that affects the temperature
-            timeout = self.env.timeout(time_resolution)
-            state_change = self.events["state_change"]
-            yield timeout | state_change
-            if not state_change.processed:  # From timeout
-                state = self.state
-            else:
-                state = state_change.value
-
-            duration = self.env.now - last_change_time
-            duration_hours = duration / 60 / 60
-            last_change_time = self.env.now
-
-            # Change depends on the duration of the previous state
-            # The further away from room temperature, the faster the cooling
-            delta_room = (
-                (self.room_temperature - self.temperature) / 5 * duration_hours
-            )  # = ~5 degrees in an hour if difference is 100
-            delta_mode = change_per_hour[state] * duration_hours
-            new_temp = self.temperature + delta_mode + delta_room
-            noise = self.norm(0, duration_hours)
-            self.temperature = max(self.room_temperature, new_temp) + noise
-            # self.debug(f'{duration / 60 / 60:.2f} hours spent in "{state}"')
-            # self.debug(f'Machine temperature: {self.temperature:.2f}')
-            # yield self.env.timeout(60)
 
     @ignore_causes()
     def _switch_on(

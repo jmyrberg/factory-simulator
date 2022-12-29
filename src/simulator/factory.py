@@ -19,7 +19,7 @@ from src.simulator.plotting import plot_factory
 from src.simulator.product import Product
 from src.simulator.program import Program
 from src.simulator.schedules import OperatingSchedule
-from src.simulator.sensors import Sensor
+from src.simulator.sensors import RoomTemperatureSensor, Sensor
 
 
 class Factory(Base):
@@ -43,7 +43,8 @@ class Factory(Base):
     ) -> None:
         """Factory."""
         super().__init__(env, name=name)
-        self.env.factory = self  # Make Factory available everywhere
+
+        # Inputs
         self.materials = materials
         self.consumables = consumables
         self.products = products
@@ -54,8 +55,21 @@ class Factory(Base):
         self.schedules = schedules
         self.machines = machines
         self.operators = operators
-        self.sensors = sensors
+        self.sensors = sensors or {}
+
+        # Internal
         self.uid = uid
+        self.add_sensor(RoomTemperatureSensor(env, self))
+
+        self.env.factory = self  # Make Factory available everywhere
+        self.env.factory_init_event.succeed()  # TODO: Rather 'global_events'
+
+    def add_sensor(self, sensor):
+        if sensor.uid not in self.sensors:
+            self.sensors[sensor.uid] = sensor
+            self.info(f'Added sensor "{sensor.uid}"')
+        else:
+            self.warning(f"Tried to add existing sensor {sensor.uid}")
 
     @classmethod
     def from_config(cls, path: str, real: bool = False):
@@ -64,6 +78,9 @@ class Factory(Base):
             env = simpy.RealtimeEnvironment(start)
         else:
             env = simpy.Environment(start)
+
+        env.factory_init_event = env.event()
+
         cfg = parse_config(env, path)
         return cls(env, **cfg)
 

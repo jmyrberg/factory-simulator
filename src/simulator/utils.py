@@ -199,3 +199,21 @@ def ignore_causes(causes: CauseType = None) -> Callable:
         return wrapper
 
     return decorator
+
+
+def wait_factory(func):
+    """Decorator to wait until factory is available in `self.env`."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        self = args[0]
+        assert isinstance(
+            self.env, (simpy.Environment, simpy.RealtimeEnvironment)
+        )
+        if not hasattr(self.env, "factory"):
+            yield self.env.factory_init_event
+            self.debug("Waiting for factory init event")
+
+        yield from func(*args, **kwargs)
+
+    return wrapper

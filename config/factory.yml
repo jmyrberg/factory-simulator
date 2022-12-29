@@ -123,9 +123,3 @@ operators:
   - id: operator1
     name: John
     machine: machine1
-
-sensors:
-  - id: room-temperature
-    type: room-temperature
-    kwargs:
-      factory_uid: factory

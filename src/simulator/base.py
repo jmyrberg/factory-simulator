@@ -2,6 +2,7 @@
 
 
 import logging
+import uuid
 from collections import defaultdict
 from datetime import timedelta
 
@@ -19,6 +20,8 @@ class Base:
         self.name = kwargs.get("name", "Unknown")
         self.tz = "Europe/Helsinki"
         self.data = defaultdict(lambda: [])
+
+        self.uid = kwargs.get("uid", f"{self.name}-{uuid.uuid4().hex[:8]}")
 
     def __repr__(self):
         return self.name

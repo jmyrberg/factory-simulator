@@ -212,7 +212,9 @@ def parse_config(env, path: str):
         env, cfg["machines"], containers, programs, schedules, maintenance
     )
     operators = make_operators(env, cfg["operators"], machines)
-    sensors = make_sensors(env, cfg["sensors"])
+    # TODO: Needed?
+    # sensors = make_sensors(env, cfg["sensors"])
+    sensors = {}
 
     # Output only when dictionary is not empty
     out = {
