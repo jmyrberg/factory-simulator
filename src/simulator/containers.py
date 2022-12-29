@@ -140,6 +140,7 @@ class MaterialContainer(Base):
 
     def put(self, batch_or_quantity: MaterialBatch | float) -> MaterialBatch:
         """Yields."""
+        # TODO: Lock while filling
         if isinstance(batch_or_quantity, MaterialBatch):
             batch = batch_or_quantity
         else:
@@ -184,8 +185,7 @@ class MaterialContainer(Base):
         fetch_quantity = 0
         while len(self.batches) > 0:
             # Take one batch at a time
-            batch = self.batches.pop()
-            self.batches = self.batches  # Log
+            batch = self.batches[-1]
 
             missing_quantity = quantity - fetch_quantity
             new_quantity = fetch_quantity + batch.quantity
@@ -193,8 +193,7 @@ class MaterialContainer(Base):
             if new_quantity > quantity:  # Need to split the batch
                 # Remove from batch
                 batch.quantity -= missing_quantity
-                self.batches.append(batch)
-                self.batches = self.batches  # Log
+                self.batches[-1] = batch  # Log change
 
                 # ...and add to fetch batch
                 fetch_quantity += missing_quantity
@@ -209,6 +208,7 @@ class MaterialContainer(Base):
             else:  # Last batch
                 fetch_quantity += batch.quantity
                 fetch_batches.append(batch)
+                self.batches.pop()
 
             if fetch_quantity == quantity:
                 break

@@ -28,7 +28,7 @@ class MaterialBatch(Base):
         if batch_id is None:
             self.batch_id = (
                 f'{material.name.replace(" ", "").upper()}'
-                f"-{self.created_ts.strftime('%Y%m%d%H%M%S')}"
+                f"-{self.created_ts.strftime('%Y%m%d')}"
                 f"-{uuid.uuid4().hex[:8].upper()}"
             )
         else:

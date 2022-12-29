@@ -4,61 +4,74 @@ name: My factory
 materials:
   - id: material1
     name: Material1
-  - id: material2
-    name: Material2
 
 consumables:
   - id: consumable1
     name: Consumable1
-  - id: consumable2
-    name: Consumable2
 
 products:
   - id: product1
     name: Product1
+  - id: product2
+    name: Product2
+  - id: product3
+    name: Product3
 
 containers:
-  - id: materialcontainer
+  - id: materialcontainer1
     name: MaterialContainer(Material1)
     content: material1
-    capacity: 100
-  - id: materialcontainer2
-    name: MaterialContainer(Material2)
-    content: material2
-    capacity: 100
-  - id: consumablecontainer
+    capacity: 1000
+  - id: consumablecontainer1
     name: ConsumableContainer(Consumable1)
     content: consumable1
-    capacity: 100
-  - id: productcontainer
+    capacity: 500
+  - id: productcontainer1
     name: ProductContainer(Product1)
     content: product1
+  - id: productcontainer2
+    name: ProductContainer(Product2)
+    content: product2
+  - id: productcontainer3
+    name: ProductContainer(Product3)
+    content: product3
 
 boms:
   - id: bom1
-    name: "My bill of material"
+    name: BOM(Product1)
     materials:
       - id: material1
-        consumption: 5
-      - id: material2
         consumption: 10
+    consumables:
+      - id: consumable1
+        consumption: 6.25
     products:
       - id: product1
         quantity: 10
 
   - id: bom2
-    name: "My bill of material 2"
+    name: BOM(Product2)
     materials:
       - id: material1
-        consumption: 2
-      - id: material2
-        consumption: 2.5
+        consumption: 7
     consumables:
       - id: consumable1
-        consumption: 2
+        consumption: 4.75
     products:
-      - id: product1
-        quantity: 1
+      - id: product2
+        quantity: 10
+
+  - id: bom3
+    name: BOM(Product3)
+    materials:
+      - id: material1
+        consumption: 13
+    consumables:
+      - id: consumable1
+        consumption: 7.75
+    products:
+      - id: product3
+        quantity: 10
 
 programs:
   - id: program1
@@ -67,51 +80,63 @@ programs:
   - id: program2
     name: Program2
     bom: bom2
+  - id: program3
+    name: Program3
+    bom: bom3
 
 schedules:
   - id: operating-schedule
     name: OperatingSchedule
     type: operating
     blocks:
-      - name: Cron(8:30, 1)
-        cron: 30 8 * * *
-        duration-hours: 1
+      - name: Cron(7:30, 1)
+        cron: 30 7 * * *
+        duration-hours: 4
         action:
           name: switch-program
           kwargs:
             program_id: program1
-      - name: Cron(24 at 06:00, M)
-        cron: 00 06 24 * *
-        duration-hours: 24
-        priority: -1
-        action:
-          name: maintenance
-      - name: Cron(12:00, 1)
-        cron: 00 12 1-31/2 * *
-        duration-hours: 1.5
-        action:
-          name: switch-program
-          kwargs:
-            program_id: program1
-      - name: Cron(12:00, 2)
-        cron: 00 12 2-30/2 * *
-        duration-hours: 1.5
+      - name: Cron(12:30, 2)
+        cron: 30 12 1-31/2 * *
+        duration-hours: 3
         action:
           name: switch-program
           kwargs:
             program_id: program2
+      - name: Cron(12:30, 3)
+        cron: 30 12 2-30/2 * *
+        duration-hours: 3
+        action:
+          name: switch-program
+          kwargs:
+            program_id: program3
+      - name: Cron(15th at 06:00, M)
+        cron: 00 06 15 * *
+        duration-hours: 24
+        priority: -1
+        action:
+          name: maintenance
+
   - id: procurement-schedule
     name: ProcurementSchedule
     type: default
     blocks:
-      - name: Cron(8:00, material1)
-        cron: 00 8 * * *
-        duration-hours: 0.25
+      - name: Cron(Mon 6:00, material1)
+        cron: 00 6 * * 0
+        duration-hours: 1
         action:
           name: procurement
           kwargs:
             content_uid: material1
-            quantity: 10
+            quantity: 600
+      - name: Cron(Fri 18:00, consumable1)
+        cron: 00 18 * * 6
+        duration-hours: 1
+        action:
+          name: procurement
+          kwargs:
+            content_uid: consumable1
+            quantity: 400
 
 maintenance:
   - id: maintenance1
@@ -121,14 +146,15 @@ machines:
   - id: machine1
     name: Machine
     schedule: operating-schedule
-    programs: [program1, program2]
+    programs: [program1, program2, program3]
     default-program: program1
     containers:
       [
-        materialcontainer,
-        materialcontainer2,
-        consumablecontainer,
-        productcontainer,
+        materialcontainer1,
+        consumablecontainer1,
+        productcontainer1,
+        productcontainer2,
+        productcontainer3,
       ]
     maintenance: maintenance1
 

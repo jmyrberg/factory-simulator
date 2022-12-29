@@ -30,9 +30,9 @@ class Operator(Base):
 
         # Constants
         self.workdays = [0, 1, 2, 3, 4, 5, 6]
-        self.work_start_desired_at = "08:00"
-        self.work_end_desired_at = "17:00"
-        self.work_end_latest_at = "22:00"
+        self.work_start_desired_at = "07:30"
+        self.work_end_desired_at = "15:30"
+        self.work_end_latest_at = "21:00"
         self.lunch_desired_at = "11:30"
         self.lunch_latest_at = "14:00"
         self.lunch_duration_mins = 30

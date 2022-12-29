@@ -61,7 +61,14 @@ def patch_obj(obj, pre=None, post=None, methods=None):
     """Patch custom classes for data collection."""
     # Methods to be patched, if not given
     if methods is None and isinstance(obj, list):
-        methods = ["insert", "append", "__setitem__", "__delitem__", "remove"]
+        methods = [
+            "insert",
+            "append",
+            "__setitem__",
+            "__delitem__",
+            "remove",
+            "pop",
+        ]
     elif methods is None and isinstance(obj, dict):
         methods = [
             "__setitem__",
