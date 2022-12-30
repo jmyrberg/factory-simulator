@@ -18,10 +18,11 @@ class Base:
     def __init__(self, env, *args, **kwargs):
         self.env = env
         self.name = kwargs.get("name", "Unknown")
+        self.uid = kwargs.get("uid", f"{self.name}-{uuid.uuid4().hex[:8]}")
+
+        # Internal
         self.tz = "Europe/Helsinki"
         self.data = defaultdict(lambda: [])
-
-        self.uid = kwargs.get("uid", f"{self.name}-{uuid.uuid4().hex[:8]}")
 
     def __repr__(self):
         return self.name
@@ -58,6 +59,7 @@ class Base:
         ts_hki = ts.format("YYYY-MM-DD HH:mm:ss")
         getattr(logger, level)(f"{ts_hki} - {self.name} - {message}")
 
+    # Time utilities
     def minutes(self, seconds):
         return 60 * seconds
 
@@ -69,6 +71,13 @@ class Base:
 
     def days(self, seconds):
         return self.hours(24 * seconds)
+
+    @property
+    def randomize(self):
+        if hasattr(self.env, "randomize"):
+            return self.env.randomize
+        else:
+            return False  # Default
 
     @property
     def day(self):
@@ -122,17 +131,65 @@ class Base:
             raise ValueError(f"{target_dt} < {self.now_dt}")
         return (target_dt - self.now_dt).total_seconds()
 
+    # Randomized functions begin here
     def uni(self, low, high):
-        return np.random.uniform(low, high)
+        """Random float between [low, high]."""
+        if self.randomize:
+            return np.random.uniform(low, high)
+        else:
+            return (high + low) / 2
 
     def iuni(self, low, high, weights=None):
+        """Random integer between [low, high]."""
         if weights is not None:
-            return np.random.choice(np.arange(low, high + 1), p=weights)
+            choices = np.arange(low, high + 1)
+            if self.randomize:
+                return np.random.choice(choices, p=weights)
+            else:
+                return choices[np.argmax(weights)]
         else:
-            return np.random.randint(low, high)
+            if self.randomize:
+                return np.random.randint(low, high)
+            else:
+                return int(round((high + low) / 2))
 
     def norm(self, mu, sigma):
-        return np.random.normal(mu, sigma)
+        """Random number from normal distribution."""
+        if self.randomize:
+            return np.random.normal(mu, sigma)
+        else:
+            return mu
 
     def pnorm(self, mu, sigma):
-        return np.abs(self.norm(mu, sigma))
+        """Positive random number from normal distribution."""
+        if self.randomize:
+            return np.abs(self.norm(mu, sigma))
+        else:
+            return np.abs(mu)
+
+    def cnorm(self, low, high):
+        """Random number from normal distribution confidence intervals."""
+        # Consider (low, high) as 5/95% intervals
+        pos = (self.norm(0, 1) - (-1.96)) / (1.96 * 2)
+        return pos * (high - low) + low
+
+    def jitter(self, max_ms=500):
+        """Very small timespan."""
+        if self.randomize:
+            return self.uni(low=0, high=max_ms) / 1000
+        else:
+            return max_ms / 2 / 1000
+
+    # Shortcuts for timeouts, "w" = wait
+    def wjitter(self, max_ms=500):
+        """Wait for a very small timespan."""
+        return self.env.timeout(self.jitter(max_ms))
+
+    def wnorm(self, low, high=None, scaler=1):
+        """Wait based on normal distribution"""
+        if high is None:
+            wait_secs = max(self.norm(low, 0.01 * scaler), 0)
+        else:
+            wait_secs = max(self.cnorm(low, high), 0)
+
+        return self.env.timeout(wait_secs)

@@ -1,5 +1,6 @@
 id: factory
 name: My factory
+randomize: true
 
 materials:
   - id: material1

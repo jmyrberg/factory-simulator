@@ -33,7 +33,7 @@ class Maintenance(Base):
         else:
             priority = 5
         issue = simpy.PriorityItem(priority, item=issue)
-        yield self.env.timeout(self.minutes(5))
+        yield self.wnorm(self.minutes(5))
         self.issues.put(issue)
         self.emit("added_issue")
 
@@ -52,7 +52,7 @@ class Maintenance(Base):
                     yield executor
 
                     real_duration = duration + self.minutes(self.iuni(-60, 60))
-                    yield self.env.timeout(real_duration)
+                    yield self.wnorm(real_duration)
 
             self.env.process(machine.press_on())
             yield machine.events["switched_on"]
@@ -61,7 +61,7 @@ class Maintenance(Base):
             # machine.log_maintenance(start_time)
         else:
             self.warning(f"Unknown issue: {issue}")
-            yield self.env.timeout(self.hours(self.iuni(3, 6)))
+            yield self.wnorm(self.hours(self.iuni(3, 6)))
 
     def repair(self):
         while True:
@@ -77,5 +77,5 @@ class Maintenance(Base):
         while True:
             next_issue_in = 60 * 60 * self.iuni(12, 48)
             priority = self.iuni(3, 5, weights=[0.8, 0.1, 0.1])
-            yield self.env.timeout(next_issue_in)
+            yield self.wnorm(next_issue_in)
             self.add_issue(OtherCustomerIssue(), priority=priority)

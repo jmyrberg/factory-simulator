@@ -38,11 +38,12 @@ class Factory(Base):
         machines: Dict[str, Machine] | None = None,
         operators: Dict[str, Operator] | None = None,
         sensors: Dict[str, Sensor] | None = None,
+        randomize: bool = True,
         name: str = "factory",
         uid: str | None = None,
     ) -> None:
         """Factory."""
-        super().__init__(env, name=name)
+        super().__init__(env, uid=uid, name=name)
 
         # Inputs
         self.materials = materials
@@ -58,10 +59,11 @@ class Factory(Base):
         self.sensors = sensors or {}
 
         # Internal
-        self.uid = uid
         self.add_sensor(RoomTemperatureSensor(env, self))
 
+        # Only factory is allowed to touch env
         self.env.factory = self  # Make Factory available everywhere
+        self.env.randomize = randomize
         self.env.factory_init_event.succeed()  # TODO: Rather 'global_events'
 
     def add_sensor(self, sensor):

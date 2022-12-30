@@ -241,5 +241,7 @@ def parse_config(env, path: str):
         out["name"] = cfg["name"]
     if "id" in cfg:
         out["uid"] = cfg["id"]
+    if "randomize" in cfg:
+        out["randomize"] = cfg["randomize"]
 
     return out

@@ -74,7 +74,9 @@ class Program(Base):
             "program_issue": self.env.event(),
         }
 
-    def _check_inputs(self, machine, expected_duration, lock=True):
+    def _check_inputs(
+        self, machine, expected_duration, lock=True, safety_margin=1.1
+    ):
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 # Containers exist?
@@ -83,7 +85,7 @@ class Program(Base):
                     raise simpy.Interrupt(ContainerMissingIssue(obj))
 
                 # Target quantity exists?
-                quantity = expected_duration * d["consumption"]
+                quantity = expected_duration * d["consumption"] * safety_margin
                 if not quantity_exists_in_containers(quantity, containers):
                     self.warning("Will not produce due low container level")
                     self.emit("program_issue")
@@ -110,7 +112,11 @@ class Program(Base):
 
                 containers, requests = zip(*self.locked_containers[obj])
 
-                quantity = time_spent * d["consumption"]
+                base_quantity = time_spent * d["consumption"]
+                quantity = self.cnorm(  # TODO: Pct. as param. or sth.
+                    low=0.95 * base_quantity, high=1.05 * base_quantity
+                )
+                # TODO: What if 1.05 exceeds?
                 batches, total = get_from_containers(quantity, containers)
                 # TODO: Save batches + total
                 self.debug(f"Consumed {total:.2f} of {obj.name}")
@@ -153,7 +159,7 @@ class Program(Base):
         self.batch_id = uuid.uuid4().hex
         start_time = self.env.now
         try:
-            yield self.env.timeout(duration)
+            yield self.wnorm(duration)
             self.state = "success"
         except simpy.Interrupt as i:
             self.info(f"Program interrupted: {i.cause}")
@@ -164,7 +170,7 @@ class Program(Base):
                 self.debug(
                     f"Waiting for current batch to finish in {time_left:.0f}"
                 )
-                yield self.env.timeout(time_left)
+                yield self.wnorm(time_left)
                 self.state = "success"
             else:
                 raise UnknownCause(i.cause)
@@ -178,11 +184,15 @@ class Program(Base):
         for obj, d in self.bom.products.items():
             containers = find_containers_by_type(obj, machine.containers)
             for container in containers:
+                base_quantity = d["quantity"]
+                quantity = self.cnorm(  # TODO: Percentage as param or sth.
+                    low=0.95 * base_quantity, high=1.05 * base_quantity
+                )
                 batch = ProductBatch(
                     env=self.env,
                     product=obj,
                     batch_id=self.batch_id,
-                    quantity=d["quantity"],
+                    quantity=quantity,
                     details={"start_time": start_time, "end_time": end_time},
                 )
                 container.put(batch)

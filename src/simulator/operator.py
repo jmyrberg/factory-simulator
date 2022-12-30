@@ -116,7 +116,7 @@ class Operator(Base):
             self.debug(f"Issue {issue} ongoing, but not noticed yet")
             self.issue_ongoing = True
 
-            yield self.env.timeout(10 * 60)  # TODO: From distribution
+            yield self.wnorm(10 * 60)  # TODO: From distribution
 
             # Cannot leave when issue ongoing (unless interrupted elsewhere)
             with self.attention.request() as attention:
@@ -148,11 +148,9 @@ class Operator(Base):
 
         while True:
             if not self.time_passed_today(self.lunch_desired_at):
-                yield self.env.timeout(
-                    self.time_until_time(self.lunch_desired_at)
-                )
+                yield self.wnorm(self.time_until_time(self.lunch_desired_at))
 
-            leave_latest = self.env.timeout(
+            leave_latest = self.wnorm(
                 self.time_until_time(self.lunch_latest_at)
             )
             with self.attention.request() as attention:
@@ -174,8 +172,11 @@ class Operator(Base):
     def _monitor_home(self):
         while True:
             if not self.time_passed_today(self.work_end_desired_at):
-                yield self.env.timeout(
-                    self.time_until_time(self.work_end_desired_at)
+                desired_at = self.time_until_time(self.work_end_desired_at)
+                early_mins = 45 if self.dow >= 4 else 5
+                yield self.wnorm(
+                    low=desired_at - self.minutes(early_mins),
+                    high=desired_at + self.minutes(45),
                 )
 
             latest_passed = self.time_passed_today(self.work_end_latest_at)
@@ -221,7 +222,11 @@ class Operator(Base):
     def _home(self):
         self.info("Chilling at home...")
         self.state = "home"
-        yield self.env.timeout(self._get_time_until_next_work_arrival())
+        next_arrival = self._get_time_until_next_work_arrival()
+        yield self.wnorm(
+            low=next_arrival - self.minutes(10),
+            high=next_arrival + self.minutes(5),
+        )
         self.had_lunch = False
         self.env.process(self._work())
 
@@ -234,6 +239,9 @@ class Operator(Base):
     def _lunch(self):
         self.info("Having lunch...")
         self.state = "lunch"
-        yield self.env.timeout(self.minutes(self.lunch_duration_mins))
+        yield self.wnorm(
+            self.minutes(self.lunch_duration_mins - 5),
+            self.minutes(self.lunch_duration_mins + 15),
+        )
         self.had_lunch = True
         self.env.process(self._work())

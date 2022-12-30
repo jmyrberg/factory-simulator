@@ -24,14 +24,14 @@ class Sensor(Base):
 
     @wait_factory
     def _init(self):
-        yield self.env.timeout(0)
+        yield self.wnorm(0)
         if self.uid not in self.env.factory.sensors:
             self.env.factory.add_sensor(self)
         self.procs = {"run": self.env.process(self.run())}
 
     def run(self):
         while True:
-            yield self.env.timeout(self.interval)
+            yield self.wnorm(self.interval)
             self.value = self.get_value()
 
     def get_value(self):
@@ -70,7 +70,7 @@ class MachineTemperatureSensor(Sensor):
         temp = room_temp_sensor.value
         while True:
             # Wait for state change that affects the temperature
-            timeout = self.env.timeout(self.interval)
+            timeout = self.wnorm(self.interval)
             state_change = self.machine.events["state_change"]
             res = yield timeout | state_change
             if timeout in res:  # From timeout
@@ -101,7 +101,7 @@ class MachineTemperatureSensor(Sensor):
             # Sensor is updated only if update is from timeout
             if timeout in res:
                 self.value = round(temp, self.decimals)
-                self.debug(f"Value updated: {self.value:.2f}")
+                # self.debug(f"Value updated: {self.value:.2f}")
 
 
 class RoomTemperatureSensor(Sensor):

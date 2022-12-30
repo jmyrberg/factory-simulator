@@ -68,7 +68,7 @@ class ConsumableContainer(Base):
             "Filling container with {quantity:.2f} in "
             f"{duration_hours:.2f} hours"
         )
-        yield self.env.timeout(self.hours(duration_hours))
+        yield self.wnorm(self.hours(duration_hours))
         self.container.put(quantity)
 
         self.debug(
@@ -164,7 +164,7 @@ class MaterialContainer(Base):
                 f"Filling container with {batch.quantity:.2f} in "
                 f"{duration_hours:.2f} hours"
             )
-            yield self.env.timeout(self.hours(duration_hours))
+            yield self.wnorm(self.hours(duration_hours))
 
             self.batches.insert(0, batch)
         else:
@@ -336,6 +336,7 @@ def get_from_containers(quantity, containers, strategy="first"):
             left = quantity - total
             if left == 0:
                 break
+
         return batches, total
     else:
         # TODO: Take evenly from all containers etc.
