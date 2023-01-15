@@ -32,14 +32,19 @@ class AttributeMonitor:
 
     def __set__(self, obj, value):
         if hasattr(self, "dtype"):
-            obj.data[self.dtype].append(
-                (
-                    obj.now_dt.datetime,
-                    obj.name,
-                    self.public_name,
-                    self.value_func(value) if self.value_func else value,
-                )
+            obj.append_data(
+                dtype=self.dtype,
+                key=self.public_name,
+                value=self.value_func(value) if self.value_func else value,
             )
+            # obj.data[self.dtype].append(
+            #     (
+            #         obj.now_dt.datetime,
+            #         obj.name,
+            #         self.public_name,
+            #         self.value_func(value) if self.value_func else value,
+            #     )
+            # )
         else:
             obj.warning("Unknown dtype")
         setattr(obj, self.private_name, value)
@@ -134,13 +139,8 @@ def with_obj_monitor(
             elif len(tup) == 3:
                 key, func, dtype = tup
 
-            obj.data[dtype].append(
-                (
-                    obj.now_dt.datetime,
-                    obj.name,
-                    f"{name}_{key}",
-                    func(attr_obj),
-                )
+            obj.append_data(
+                dtype=dtype, key=f"{name}_{key}", value=func(attr_obj)
             )
 
     # Functions to apply

@@ -1,6 +1,7 @@
 id: factory
-name: My factory
+name: Factory
 randomize: true
+monitor: true
 
 materials:
   - id: material1

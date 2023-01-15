@@ -37,6 +37,12 @@ class Base:
             name=name,
         )
 
+    def append_data(self, dtype, key, value):
+        if self.monitor:
+            self.data[dtype].append(
+                (self.now_dt.datetime, self.name, key, value)
+            )
+
     def emit(self, name, value=None):
         self.debug(f'Event - "{name}"')
         self.events[name].succeed(value)
@@ -75,7 +81,14 @@ class Base:
     @property
     def randomize(self):
         if hasattr(self.env, "randomize"):
-            return self.env.randomize
+            return bool(self.env.randomize)
+        else:
+            return False  # Default
+
+    @property
+    def monitor(self):
+        if hasattr(self.env, "monitor"):
+            return bool(self.env.monitor)
         else:
             return False  # Default
 

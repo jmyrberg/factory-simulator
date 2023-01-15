@@ -39,6 +39,7 @@ class Factory(Base):
         operators: Dict[str, Operator] | None = None,
         sensors: Dict[str, Sensor] | None = None,
         randomize: bool = True,
+        monitor: bool = True,
         name: str = "factory",
         uid: str | None = None,
     ) -> None:
@@ -64,6 +65,7 @@ class Factory(Base):
         # Only factory is allowed to touch env
         self.env.factory = self  # Make Factory available everywhere
         self.env.randomize = randomize
+        self.env.monitor = monitor
         self.env.factory_init_event.succeed()  # TODO: Rather 'global_events'
 
     def add_sensor(self, sensor):

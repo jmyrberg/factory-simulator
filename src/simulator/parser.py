@@ -237,11 +237,15 @@ def parse_config(env, path: str):
         "operators": operators,
         "sensors": sensors,
     }
-    if "name" in cfg:
-        out["name"] = cfg["name"]
-    if "id" in cfg:
-        out["uid"] = cfg["id"]
-    if "randomize" in cfg:
-        out["randomize"] = cfg["randomize"]
+
+    # Extra attributes
+    for key, kwd in [
+        ("name", "name"),
+        ("id", "uid"),
+        ("randomize", "randomize"),
+        ("monitor", "monitor"),
+    ]:
+        if key in cfg:
+            out[kwd] = cfg[key]
 
     return out
