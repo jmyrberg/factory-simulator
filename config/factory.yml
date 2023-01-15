@@ -1,7 +1,7 @@
 id: factory
 name: Factory
 randomize: true
-monitor: true
+monitor: -1
 
 materials:
   - id: material1
@@ -164,3 +164,30 @@ operators:
   - id: operator1
     name: John
     machine: machine1
+
+exporters:
+  - id: csv-exporter
+    type: csv
+    filepath: results/run.csv
+    interval-secs: 60
+    names:
+      [
+        factory.datetime,
+        machine1.state,
+        machine1.production_interrupt_code,
+        machine1-temperature-sensor.temperature,
+        program1.consumption_consumable1,
+        program1.consumption_material1,
+        program1.latest_batch_id_material1,
+        program1.product_quantity_product1,
+        program2.consumption_consumable1,
+        program2.consumption_material1,
+        program2.latest_batch_id_material1,
+        program2.product_quantity_product2,
+        program3.consumption_consumable1,
+        program3.consumption_material1,
+        program3.latest_batch_id_material1,
+        program3.product_quantity_product3,
+        consumablecontainer1.consumablecontainer1_post_level,
+        materialcontainer1.batches_quantity,
+      ]

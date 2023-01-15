@@ -13,6 +13,7 @@ from src.simulator.containers import (
     MaterialContainer,
     ProductContainer,
 )
+from src.simulator.exporters import get_exporter_by_type
 from src.simulator.machine import Machine
 from src.simulator.maintenance import Maintenance
 from src.simulator.material import Material
@@ -28,7 +29,7 @@ def cfg2obj(env, obj, cfg_list):
     out = {}
     for cfg in cfg_list:
         id_ = cfg.pop("id")
-        out[id_] = obj(env, **cfg)
+        out[id_] = obj(env, uid=id_, **cfg)
 
     return out
 
@@ -63,6 +64,7 @@ def make_boms(env, cfg_list, material_objs, consumable_objs, product_objs):
 
         out[id_] = BOM(
             env,
+            uid=id_,
             **cfg,
             materials=materials_,
             consumables=consumables_,
@@ -109,9 +111,9 @@ def make_schedules(env, cfg_list, programs):
             blocks_.append(block_obj)
 
         if schedule_type == "default":
-            out[id_] = Schedule(env, blocks=blocks_, **cfg)
+            out[id_] = Schedule(env, uid=id_, blocks=blocks_, **cfg)
         elif schedule_type == "operating":
-            out[id_] = OperatingSchedule(env, blocks=blocks_, **cfg)
+            out[id_] = OperatingSchedule(env, uid=id_, blocks=blocks_, **cfg)
         else:
             raise ValueError(f"Unknown schedule type '{schedule_type}'")
 
@@ -137,7 +139,7 @@ def make_machines(env, cfg_list, containers, programs, schedules, maintenance):
         if "maintenance" in cfg:
             d["maintenance"] = maintenance[cfg["maintenance"]]
 
-        out[id_] = Machine(env, **d)
+        out[id_] = Machine(env, uid=id_, **d)
 
     return out
 
@@ -147,7 +149,7 @@ def make_maintenance(env, cfg_list):
     out = {}
     for cfg in cfg_list:
         id_ = cfg.pop("id")
-        out[id_] = Maintenance(env, **cfg)
+        out[id_] = Maintenance(env, uid=id_, **cfg)
     return out
 
 
@@ -159,13 +161,13 @@ def make_containers(env, cfg_list, materials, consumables, products):
         content_id = cfg.pop("content")
         if content_id in materials:
             material = materials[content_id]
-            out[id_] = MaterialContainer(env, material, **cfg)
+            out[id_] = MaterialContainer(env, material, uid=id_, **cfg)
         elif content_id in consumables:
             consumable = consumables[content_id]
-            out[id_] = ConsumableContainer(env, consumable, **cfg)
+            out[id_] = ConsumableContainer(env, consumable, uid=id_, **cfg)
         elif content_id in products:
             product = products[content_id]
-            out[id_] = ProductContainer(env, product, **cfg)
+            out[id_] = ProductContainer(env, product, uid=id_, **cfg)
 
     return out
 
@@ -180,7 +182,7 @@ def make_operators(env, cfg_list, machines):
             op["machine"] = machines[cfg["machine"]]
         if "name" in cfg:
             op["name"] = cfg["name"]
-        out[id_] = Operator(env, **op)
+        out[id_] = Operator(env, uid=id_, **op)
 
     return out
 
@@ -193,13 +195,33 @@ def make_sensors(env, cfg_list):
         sensor_type = cfg.pop("type")
         kwargs = cfg.get("kwargs") or {}
         cls = get_sensor_by_type(sensor_type)
-        out[id_] = cls(env, **kwargs)
+        out[id_] = cls(env, uid=id_, **kwargs)
+
+    return out
+
+
+def make_exporters(env, cfg_list):
+    cfg_list = deepcopy(cfg_list)
+    out = {}
+    for cfg in cfg_list:
+        id_ = cfg.pop("id")
+        exporter_type = cfg.pop("type")
+        cls = get_exporter_by_type(exporter_type)
+
+        kwargs = {"filepath": cfg["filepath"]}
+        if "names" in cfg:
+            kwargs["names"] = cfg["names"]
+        if "interval-secs" in cfg:
+            kwargs["interval_secs"] = cfg["interval-secs"]
+
+        out[id_] = cls(env, uid=id_, **kwargs)
 
     return out
 
 
 def parse_config(env, path: str):
     """Parse factory configuration file."""
+    # TODO: Check UIDs are actually unique
     # Read YAML
     with open(path, "r") as f:
         cfg = yaml.full_load(f.read())
@@ -219,6 +241,8 @@ def parse_config(env, path: str):
         env, cfg["machines"], containers, programs, schedules, maintenance
     )
     operators = make_operators(env, cfg["operators"], machines)
+    exporters = make_exporters(env, cfg.get("exporters", []))
+
     # TODO: Needed?
     # sensors = make_sensors(env, cfg["sensors"])
     sensors = {}
@@ -236,6 +260,7 @@ def parse_config(env, path: str):
         "machines": machines,
         "operators": operators,
         "sensors": sensors,
+        "exporters": exporters,
     }
 
     # Extra attributes

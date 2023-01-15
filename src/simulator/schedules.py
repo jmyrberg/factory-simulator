@@ -15,13 +15,13 @@ class Block(Base):
     is_active = AttributeMonitor()
     action = AttributeMonitor()
 
-    def __init__(self, env, action=None, priority=0, name="block"):
+    def __init__(self, env, action=None, priority=0, name="block", uid=None):
         """
 
         action (tuple): Tuple of (action_func, args, kwargs). Assigned machine
             will be automatically passed within kwargs.
         """
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.action = action
         self.priority = priority
         self.is_active = False
@@ -111,8 +111,11 @@ class CronBlock(Block):
         action=None,
         priority=0,
         name="cron-block",
+        uid=None,
     ):
-        super().__init__(env, action=action, priority=priority, name=name)
+        super().__init__(
+            env, action=action, priority=priority, name=name, uid=uid
+        )
         self.cron = cron
         self.duration_hours = duration_hours
         self.next_start_dt = None
@@ -152,8 +155,8 @@ class Schedule(Base):
 
     active_block = AttributeMonitor()
 
-    def __init__(self, env, blocks=None, name="schedule"):
-        super().__init__(env, name=name)
+    def __init__(self, env, blocks=None, name="schedule", uid=None):
+        super().__init__(env, name=name, uid=uid)
         self.blocks = blocks
         for block in self.blocks:
             block.assign_schedule(self)
@@ -229,8 +232,8 @@ class Schedule(Base):
 class OperatingSchedule(Schedule):
     """Controls the "program" -attribute of a machine."""
 
-    def __init__(self, env, blocks=None, name="operating-schedule"):
-        super().__init__(env, blocks=blocks, name=name)
+    def __init__(self, env, blocks=None, name="operating-schedule", uid=None):
+        super().__init__(env, blocks=blocks, name=name, uid=uid)
 
         self.machine = None
         self.procs["on_machine_start"] = self.env.process(

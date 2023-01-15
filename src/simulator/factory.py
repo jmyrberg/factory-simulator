@@ -1,6 +1,7 @@
 """Factory."""
 
 
+from collections import defaultdict
 from typing import Dict
 
 import arrow
@@ -10,12 +11,13 @@ from src.simulator.base import Base
 from src.simulator.bom import BOM
 from src.simulator.consumable import Consumable
 from src.simulator.containers import ConsumableContainer, MaterialContainer
+from src.simulator.exporters import Exporter
 from src.simulator.machine import Machine
 from src.simulator.maintenance import Maintenance
 from src.simulator.material import Material
 from src.simulator.operator import Operator
 from src.simulator.parser import parse_config
-from src.simulator.plotting import plot_factory
+from src.simulator.plotting import plot_numerical, plot_timeline
 from src.simulator.product import Product
 from src.simulator.program import Program
 from src.simulator.schedules import OperatingSchedule
@@ -38,8 +40,9 @@ class Factory(Base):
         machines: Dict[str, Machine] | None = None,
         operators: Dict[str, Operator] | None = None,
         sensors: Dict[str, Sensor] | None = None,
+        exporters: Dict[str, Exporter] | None = None,
         randomize: bool = True,
-        monitor: bool = True,
+        monitor: int = 100,
         name: str = "factory",
         uid: str | None = None,
     ) -> None:
@@ -58,15 +61,30 @@ class Factory(Base):
         self.machines = machines
         self.operators = operators
         self.sensors = sensors or {}
+        self.exporters = exporters or {}
 
         # Internal
-        self.add_sensor(RoomTemperatureSensor(env, self))
+        self._state = {}
+        self.add_sensor(
+            RoomTemperatureSensor(
+                env, self, uid=f"{self.uid}-room-temperature-sensor"
+            )
+        )
 
         # Only factory is allowed to touch env
         self.env.factory = self  # Make Factory available everywhere
         self.env.randomize = randomize
         self.env.monitor = monitor
         self.env.factory_init_event.succeed()  # TODO: Rather 'global_events'
+
+    @property
+    def state(self):
+        statedict = {
+            f"{uid}.{key}": v
+            for (dtype, uid, key), (ds, v) in self.data_last.items()
+        }
+        statedict[f"{self.uid}.datetime"] = self.now_dt.datetime
+        return statedict
 
     def add_sensor(self, sensor):
         if sensor.uid not in self.sensors:
@@ -94,6 +112,12 @@ class Factory(Base):
 
         raise KeyError(f'UID "{uid}" not found')
 
+    @staticmethod
+    def init_env(env):
+        env.factory_init_event = env.event()
+        env.data = defaultdict(lambda: [])
+        return env
+
     @classmethod
     def from_config(cls, path: str, real: bool = False):
         start = arrow.now("Europe/Helsinki").timestamp()
@@ -102,7 +126,7 @@ class Factory(Base):
         else:
             env = simpy.Environment(start)
 
-        env.factory_init_event = env.event()
+        env = Factory.init_env(env)
 
         cfg = parse_config(env, path)
         return cls(env, **cfg)
@@ -112,4 +136,14 @@ class Factory(Base):
         self.env.run(until)
 
     def plot(self):
-        plot_factory(self)
+        end_dt = self.now_dt.datetime
+        plot_timeline(
+            df=self.data_df.query("dtype == 'categorical'"),
+            end_dt=end_dt,
+            width=800,
+        )
+        plot_numerical(
+            df=self.data_df.query("dtype == 'numerical'"),
+            end_dt=end_dt,
+            width=800,
+        )

@@ -32,6 +32,7 @@ class Machine(Base):
         default_program=None,
         maintenance=None,
         name="machine",
+        uid=None,
     ) -> None:
         """Machine in a factory.
 
@@ -41,7 +42,7 @@ class Machine(Base):
             idle -> on:
             on -> error:
         """
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.schedule = schedule
         self.containers = containers or []
         self.programs = programs
@@ -59,7 +60,9 @@ class Machine(Base):
         self.production_interrupt_code = 0
 
         self.sensors = [
-            MachineTemperatureSensor(env, self),
+            MachineTemperatureSensor(
+                env, self, uid=f"{self.uid}-temperature-sensor"
+            ),
         ]
         self.events = {
             # Program

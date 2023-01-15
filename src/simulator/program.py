@@ -25,7 +25,7 @@ class Program(Base):
 
     def __init__(self, uid: str, env, bom, name="program") -> None:
         """Machine program."""
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.uid = uid
         self.bom = bom
 
@@ -35,7 +35,7 @@ class Program(Base):
         self.consumption = self.with_monitor(
             {},
             post=[  # TODO: Use UIDs instead of name
-                (obj.name, lambda x: x[obj.name] if obj.name in x else 0)
+                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
                 for mtype in ["consumables", "materials"]
                 for obj, d in getattr(self.bom, mtype).items()
             ],
@@ -44,27 +44,27 @@ class Program(Base):
         # TODO: Do all of these default settings more concisely
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
-                self.consumption[obj.name] = 0
+                self.consumption[obj.uid] = 0
         self.product_quantity = self.with_monitor(
             {},
             post=[  # TODO: Use UIDs instead of name
-                (obj.name, lambda x: x[obj.name] if obj.name in x else 0)
+                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
                 for obj, d in self.bom.products.items()
             ],
             name="product_quantity",
         )
         for obj, d in self.bom.products.items():
-            self.product_quantity[obj.name] = 0
+            self.product_quantity[obj.uid] = 0
         self.latest_batch_id = self.with_monitor(
             {},
             post=[
-                (obj.name, lambda x: x[obj.name] if obj.name in x else "null")
+                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else "null")
                 for obj, d in self.bom.materials.items()
             ],
             name="latest_batch_id",
         )
         for obj, d in self.bom.materials.items():
-            self.latest_batch_id[obj.name] = "null"
+            self.latest_batch_id[obj.uid] = "null"
 
         self.locked_containers = defaultdict(list)
         self.events = {
@@ -119,17 +119,17 @@ class Program(Base):
                 # TODO: What if 1.05 exceeds?
                 batches, total = get_from_containers(quantity, containers)
                 # TODO: Save batches + total
-                self.debug(f"Consumed {total:.2f} of {obj.name}")
+                self.debug(f"Consumed {total:.2f} of {obj.uid}")
 
                 # Log consumption
-                if obj.name not in self.consumption:
-                    self.consumption[obj.name] = 0
+                if obj.uid not in self.consumption:
+                    self.consumption[obj.uid] = 0
 
-                self.consumption[obj.name] += total
+                self.consumption[obj.uid] += total
 
                 # Log material id
                 if mtype == "materials":
-                    self.latest_batch_id[obj.name] = batches[-1].batch_id
+                    self.latest_batch_id[obj.uid] = batches[-1].batch_id
 
         if unlock:  # Needs to happen after consumption ^
             self._unlock_containers()
@@ -198,9 +198,9 @@ class Program(Base):
                 container.put(batch)
 
                 # Log outputs for this machine
-                if obj.name not in self.product_quantity:
-                    self.product_quantity[obj.name] = 0
-                self.product_quantity[obj.name] += batch.quantity
+                if obj.uid not in self.product_quantity:
+                    self.product_quantity[obj.uid] = 0
+                self.product_quantity[obj.uid] += batch.quantity
 
         self.state = "off"
         self.emit("program_stopped")

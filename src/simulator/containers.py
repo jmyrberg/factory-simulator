@@ -23,9 +23,10 @@ class ConsumableContainer(Base):
         init=None,
         fill_rate=50,
         name="consumable-container",
+        uid=None,
     ):
         """Container with continuous contents."""
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.consumable = consumable
         self.init = init
         self.fill_rate = fill_rate  # units per hour
@@ -33,7 +34,7 @@ class ConsumableContainer(Base):
         self.lock = self.with_monitor(simpy.PriorityResource(env), name="lock")
         self.container = self.with_monitor(
             simpy.Container(env=env, capacity=capacity, init=init or capacity),
-            name=name,
+            name=self.uid,
         )
 
     @property
@@ -98,9 +99,10 @@ class MaterialContainer(Base):
         fill_rate=50,
         init=None,
         name="material-container",
+        uid=None,
     ):
         """Container with discrete contents."""
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.material = material
         self.capacity = capacity
         self.fill_rate = fill_rate
@@ -224,9 +226,9 @@ class MaterialContainer(Base):
 
 
 class ProductContainer(Base):
-    def __init__(self, env, product, name="product-container"):
+    def __init__(self, env, product, name="product-container", uid=None):
         """Container with discrete contents."""
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.product = product
         self.batches = self.with_monitor(
             MonitoredList(),

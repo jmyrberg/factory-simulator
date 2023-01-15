@@ -7,9 +7,9 @@ from src.simulator.base import Base
 
 
 class Product(Base):
-    def __init__(self, env, name="product"):
+    def __init__(self, env, name="product", uid=None):
         """Machine program."""
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.name = name
 
 

@@ -7,8 +7,8 @@ from src.simulator.base import Base
 
 
 class Material(Base):
-    def __init__(self, env, name="material"):
-        super().__init__(env, name=name)
+    def __init__(self, env, name="material", uid=None):
+        super().__init__(env, name=name, uid=uid)
 
 
 class MaterialBatch(Base):

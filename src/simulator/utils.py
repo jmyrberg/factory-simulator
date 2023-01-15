@@ -37,14 +37,6 @@ class AttributeMonitor:
                 key=self.public_name,
                 value=self.value_func(value) if self.value_func else value,
             )
-            # obj.data[self.dtype].append(
-            #     (
-            #         obj.now_dt.datetime,
-            #         obj.name,
-            #         self.public_name,
-            #         self.value_func(value) if self.value_func else value,
-            #     )
-            # )
         else:
             obj.warning("Unknown dtype")
         setattr(obj, self.private_name, value)
@@ -224,3 +216,8 @@ def wait_factory(func):
         yield from func(*args, **kwargs)
 
     return wrapper
+
+
+def to_camel_case(snake_str):
+    components = snake_str.split("_")
+    return "".join(x.title() for x in components[1:])

@@ -8,8 +8,8 @@ from src.simulator.issues import OtherCustomerIssue, ScheduledMaintenanceIssue
 
 
 class Maintenance(Base):
-    def __init__(self, env, workers=2, name="maintenance"):
-        super().__init__(env, name=name)
+    def __init__(self, env, workers=2, name="maintenance", uid=None):
+        super().__init__(env, name=name, uid=uid)
         self.issues = self.with_monitor(
             simpy.PriorityStore(env), name="issues"
         )

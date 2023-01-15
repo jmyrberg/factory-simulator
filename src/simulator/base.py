@@ -3,11 +3,11 @@
 
 import logging
 import uuid
-from collections import defaultdict
 from datetime import timedelta
 
 import arrow
 import numpy as np
+import pandas as pd
 
 from src.simulator.utils import with_obj_monitor
 
@@ -18,14 +18,42 @@ class Base:
     def __init__(self, env, *args, **kwargs):
         self.env = env
         self.name = kwargs.get("name", "Unknown")
-        self.uid = kwargs.get("uid", f"{self.name}-{uuid.uuid4().hex[:8]}")
+        self.uid = kwargs.get("uid") or f"{self.name}-{uuid.uuid4().hex[:8]}"
 
         # Internal
         self.tz = "Europe/Helsinki"
-        self.data = defaultdict(lambda: [])
 
     def __repr__(self):
-        return self.name
+        return self.uid
+
+    @property
+    def data(self):
+        if hasattr(self.env, "data"):
+            return self.env.data
+        else:
+            raise ValueError("'data' does not exist in self.env")
+
+    @property
+    def data_df(self):
+        flatten = [
+            (*dkey, *dvalue)
+            for dkey, dvalues in self.data.items()
+            for dvalue in dvalues
+        ]
+        columns = ["dtype", "obj", "key", "ds", "value"]
+        return pd.DataFrame(flatten, columns=columns)
+
+    @property
+    def data_last(self):
+        return {k: v[-1] for k, v in self.env.data.items()}
+
+    @property
+    def data_last_df(self):
+        flatten = [
+            (*dkey, dvalues[0]) for dkey, dvalues in self.data_last.items()
+        ]
+        columns = ["dtype", "obj", "key", "ds", "value"]
+        return pd.DataFrame(flatten, columns=columns)
 
     def with_monitor(self, obj, pre=None, post=None, methods=None, name=None):
         return with_obj_monitor(
@@ -38,10 +66,15 @@ class Base:
         )
 
     def append_data(self, dtype, key, value):
-        if self.monitor:
-            self.data[dtype].append(
-                (self.now_dt.datetime, self.name, key, value)
-            )
+        dkey = (dtype, self.uid, key)
+        dvalue = (self.now_dt.datetime, value)
+        if self.monitor < 0:
+            self.data[dkey].append(dvalue)
+        elif self.monitor == 1:
+            self.data[dkey] = [dvalue]
+        elif self.monitor > 1:
+            n = self.monitor - 1
+            self.data[dkey] = self.data[dkey][-n:] + [dvalue]
 
     def emit(self, name, value=None):
         self.debug(f'Event - "{name}"')
@@ -88,9 +121,9 @@ class Base:
     @property
     def monitor(self):
         if hasattr(self.env, "monitor"):
-            return bool(self.env.monitor)
+            return self.env.monitor
         else:
-            return False  # Default
+            return 0  # Default
 
     @property
     def day(self):

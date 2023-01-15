@@ -15,7 +15,7 @@ class Operator(Base):
     issue_ongoing = AttributeMonitor()
     had_lunch = AttributeMonitor()
 
-    def __init__(self, env, machine=None, name="operator"):
+    def __init__(self, env, machine=None, name="operator", uid=None):
         """Models an operator at the factory.
 
         Basic cycle:
@@ -25,7 +25,7 @@ class Operator(Base):
             4) Operate/monitor the machine
             5) Go home
         """
-        super().__init__(env, name=name)
+        super().__init__(env, name=name, uid=uid)
         self.machine = machine
 
         # Constants

@@ -23,7 +23,8 @@ def get_action(name, *args, **kwargs):
         "maintenance": _action_maintenance,
         "procurement": _action_procurement,
     }
-    func = partial(funcs[name], *args, **kwargs)
+    orig_func = funcs[name]
+    func = partial(orig_func, *args, **kwargs)
     # TODO: Cleanup the mess below
     args_str = ", ".join(args)
     kwargs_str = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())

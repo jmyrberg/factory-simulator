@@ -16,8 +16,10 @@ class Sensor(Base):
 
     value = AttributeMonitor("numerical")
 
-    def __init__(self, env, interval=60, init_value=None, name="sensor"):
-        super().__init__(env, name=name)
+    def __init__(
+        self, env, interval=60, init_value=None, name="sensor", uid=None
+    ):
+        super().__init__(env, name=name, uid=uid)
         self.interval = interval
         self.value = init_value
         self.env.process(self._init())
@@ -42,9 +44,9 @@ class MachineTemperatureSensor(Sensor):
 
     value = AttributeMonitor("numerical", name="temperature")
 
-    def __init__(self, env, machine, decimals=2, **kwargs):
+    def __init__(self, env, machine, decimals=2, uid=None, **kwargs):
         kwargs["name"] = f"MachineTemperatureSensor({machine.name})"
-        super().__init__(env, **kwargs)
+        super().__init__(env, uid=uid, **kwargs)
         self.machine = machine
         self.decimals = decimals
 
@@ -108,9 +110,9 @@ class RoomTemperatureSensor(Sensor):
 
     value = AttributeMonitor("numerical", name="temperature")
 
-    def __init__(self, env, factory, decimals=2, **kwargs):
+    def __init__(self, env, factory, decimals=2, uid=None, **kwargs):
         kwargs["name"] = f"RoomTemperatureSensor({factory.name})"
-        super().__init__(env, init_value=19, **kwargs)
+        super().__init__(env, init_value=19, uid=uid, **kwargs)
         self.factory = factory
         self.decimals = decimals
 
