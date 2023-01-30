@@ -5,7 +5,7 @@ class BaseIssue(BaseException):
     code = 100
 
     def __init__(self, name=None):
-        self.name = name or ""
+        self.name = name or "BaseIssue"
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.name!r})"
@@ -56,7 +56,7 @@ class OtherCustomerIssue(BaseIssue):
 
 
 class ScheduledMaintenanceIssue(BaseIssue):
-    """Issue from another customer to the maintenance team."""
+    """Scheduled machine maintenance."""
 
     code = 100 + 5
     priority = 1
@@ -66,6 +66,28 @@ class ScheduledMaintenanceIssue(BaseIssue):
         super().__init__(**kwargs)
         self.machine = machine
         self.duration = duration
+
+
+class PartBrokenIssue(BaseIssue):
+    """Machine part is broken."""
+
+    def __init__(
+        self,
+        machine,
+        part_name,
+        needs_maintenance=False,
+        priority=0,
+        code=200,
+        difficulty=1,  # ~hours to fix by operator
+        **kwargs
+    ):
+        super().__init__(name=part_name, **kwargs)
+        self.machine = machine
+        self.part_name = part_name
+        self.needs_maintenance = needs_maintenance
+        self.priority = priority
+        self.code = code
+        self.difficulty = difficulty
 
 
 class UnknownIssue(BaseIssue):

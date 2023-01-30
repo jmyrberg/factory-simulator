@@ -178,6 +178,12 @@ class Base:
         return (target_dt - self.now_dt).total_seconds()
 
     # Randomized functions begin here
+    def choice(self, choices, p=None):
+        if self.randomize:
+            return np.random.choice(choices, p=p)
+        else:
+            return choices[0]
+
     def uni(self, low, high):
         """Random float between [low, high]."""
         if self.randomize:

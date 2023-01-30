@@ -172,6 +172,8 @@ class Program(Base):
                 )
                 yield self.wnorm(time_left)
                 self.state = "success"
+            elif isinstance(i.cause, BaseCause) and i.cause.force:
+                self.debug("Not waiting for current batch to finish")
             else:
                 raise UnknownCause(i.cause)
 

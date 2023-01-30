@@ -1,6 +1,7 @@
 """Machine in a factory."""
 
 
+import numpy as np
 import simpy
 
 from src.simulator.base import Base
@@ -10,7 +11,7 @@ from src.simulator.causes import (
     ManualStopProductionCause,
     ManualSwitchOffCause,
 )
-from src.simulator.issues import OverheatIssue, ProductionIssue
+from src.simulator.issues import OverheatIssue, ProductionIssue, PartBrokenIssue
 from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
@@ -104,6 +105,7 @@ class Machine(Base):
         }
         self.procs = {
             "init": self.env.process(self._init()),
+            "machine_break": self.env.process(self._machine_break_proc())
             # "temperature_monitor": self.env.process(
             #     self._temperature_monitor_proc()
             # ),
@@ -123,6 +125,34 @@ class Machine(Base):
                 yield self.env.process(self._trigger_issue(issue))
             elif self.temperature > 70:
                 self.warning(f"Temperature very high: {self.temperature}")
+
+    def _machine_break_proc(self):
+        parts = [
+            {
+                'part_name': 'motor',
+                'needs_maintenance': True,
+                'priority': 0,
+                'difficulty': 6
+            },
+            {
+                'part_name': 'bearing',
+                'needs_maintenance': False,
+                'priority': 5,
+                'difficulty': 0.5
+            },
+        ]
+        yield self.env.timeout(0)
+        while True:
+            yield self.wnorm(self.hours(12 * 1), self.hours(12 * 2))
+            part = self.choice(parts)
+            issue = PartBrokenIssue(machine=self, **part)
+
+            if self.state == "off":
+                yield self.events["switched_on"]
+                yield self.wjitter()
+
+            self.warning(f'Machine part broken: {issue}')
+            yield self.env.process(self._switch_error(issue))
 
     @ignore_causes()
     def _switch_on(
@@ -153,6 +183,8 @@ class Machine(Base):
             if executor not in results:
                 self.debug('Execution ongoing, will not try to go "on"')
                 return
+
+            self.debug('Locked executor at "switch_on"')
 
             # Turn machine on
             if self.state == "off":
@@ -206,15 +238,17 @@ class Machine(Base):
             self.emit("switched_off")
             return
 
-        priority = -9999 if force else priority
+        priority = -99999 if force else priority
         with self.execute.request(priority) as executor:
             if require_executor:
                 results = yield executor | self.env.timeout(max_wait)
                 if executor not in results:
                     self.debug('Execution ongoing, will not try to go "off"')
                     return
+                else:
+                    self.debug('Locked executor at "switch_off"')
             else:
-                self.warning("Skipping executor waiting at switching off")
+                self.debug("Skipping executor waiting at switching off")
 
             # Turn machine off
             if self.state == "on":
@@ -250,6 +284,9 @@ class Machine(Base):
                 yield self.wjitter()
                 self.state = "off"
                 self.emit("switched_off")
+
+        if require_executor:
+            self.debug('Released executor at "switch_off"')
 
     def press_off(self, force=False, priority=-10, max_wait=120):
         yield self.wjitter()
@@ -327,14 +364,19 @@ class Machine(Base):
                         f"{program}"
                     )
                     return
+                else:
+                    self.debug('Locked executor at "switch_program"')
             else:
-                self.warning("Skipping executor waiting at switching program")
+                self.debug("Skipping executor waiting at switching program")
 
             assert self.state != "production", "Something went wrong :("
             self.emit("switching_program")
             yield self.wnorm(60, 120)
             self.program = program
             self.emit("switched_program")
+
+        if require_executor:
+            self.debug('Released executor at "switch_program"')
 
     @ignore_causes()
     def _automated_program_switch(
@@ -408,8 +450,8 @@ class Machine(Base):
             yield self.events["switched_program"]
 
     def start_production(self, program=None, max_wait=60):
-        yield self.wjitter()
         with self.ui.request() as ui:
+            yield self.wjitter()
             results = yield ui | self.env.timeout(max_wait)
             if ui not in results:
                 self.debug(
@@ -425,8 +467,8 @@ class Machine(Base):
             self.env.process(self._switch_production())
 
     def stop_production(self, force=False, max_wait=60):
-        yield self.wjitter()
         with self.ui.request() as ui:
+            yield self.wjitter()
             results = yield ui | self.env.timeout(max_wait)
             if ui not in results:
                 self.debug(
@@ -538,6 +580,8 @@ class Machine(Base):
             with self.execute.request(priority=-9999) as executor:
                 yield executor
 
+                self.debug('Locked executor at "switch_error"')
+
                 yield self.wjitter()
                 self.state = "error"
                 self.emit("switched_error")
@@ -554,7 +598,7 @@ class Machine(Base):
                 # Give execution back once clear issue from operator
                 yield self.events["clearing_issue"]
 
-            self.debug("Execution released")
+            self.debug('Released executor at "switch_error"')
 
             # UI locked until issue cleared entirely
             yield self.events["issue_cleared"]

@@ -4,7 +4,7 @@
 import simpy
 
 from src.simulator.base import Base
-from src.simulator.issues import OtherCustomerIssue, ScheduledMaintenanceIssue
+from src.simulator.issues import OtherCustomerIssue, ScheduledMaintenanceIssue, PartBrokenIssue
 
 
 class Maintenance(Base):
@@ -32,36 +32,50 @@ class Maintenance(Base):
             priority = issue.priority
         else:
             priority = 5
-        issue = simpy.PriorityItem(priority, item=issue)
-        yield self.wnorm(self.minutes(5))
-        self.issues.put(issue)
-        self.emit("added_issue")
+
+        if issue in self.issues.items:
+            self.warning(f"Issue {issue} already in issues, ignoring")
+            yield self.wnorm(self.minutes(1))
+            return
+        else:
+            yield self.wnorm(self.minutes(5))
+            self.issues.put(simpy.PriorityItem(priority, item=issue))
+
+            self.emit("added_issue")
 
     def _fix_issue(self, issue):
         if isinstance(issue, ScheduledMaintenanceIssue):
             duration = issue.duration
             machine = issue.machine
 
-            # Turn off
-            self.env.process(machine.press_off())
+            # Turn off no matter what
+            self.env.process(machine.press_off(force=True))  # Should take executor
             yield machine.events["switched_off"]
 
             with machine.ui.request(-99) as ui:
                 yield ui
+                self.debug('Locked UI')
                 with machine.execute.request(-99) as executor:
                     yield executor
+                    self.debug('Locked executor')
 
                     real_duration = duration + self.minutes(self.iuni(-60, 60))
+                    self.debug(f"Waiting {real_duration} seconds")
                     yield self.wnorm(real_duration)
 
-            self.env.process(machine.press_on())
-            yield machine.events["switched_on"]
+        elif isinstance(issue, PartBrokenIssue):
+            duration = self.hours(issue.difficulty)
+            machine = issue.machine
+            yield self.wnorm(0.9 * duration, 1.1 * duration)
 
-            # TODO: Implement maintenance log machine side
-            # machine.log_maintenance(start_time)
+            self.env.process(machine.clear_issue())
+            yield machine.events['issue_cleared']
         else:
             self.warning(f"Unknown issue: {issue}")
             yield self.wnorm(self.hours(self.iuni(3, 6)))
+
+        # TODO: Implement maintenance log machine side
+        # machine.log_maintenance(start_time)
 
     def repair(self):
         while True:
