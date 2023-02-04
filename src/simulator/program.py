@@ -82,7 +82,7 @@ class Program(Base):
         }
 
     def _check_inputs(
-        self, machine, expected_duration, lock=True, safety_margin=1.1
+        self, machine, expected_duration, lock=True, safety_margin=2.0
     ):
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
@@ -112,6 +112,7 @@ class Program(Base):
 
     def _consume_inputs(self, time_spent, unlock=True):
         self.debug(f"Consuming inputs for {time_spent=:.2f}")
+        output_factor = 1
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 if obj not in self.locked_containers:
@@ -120,11 +121,18 @@ class Program(Base):
                 containers, requests = zip(*self.locked_containers[obj])
 
                 base_quantity = time_spent * d["consumption"]
-                quantity = self.cnorm(  # TODO: Pct. as param. or sth.
-                    low=0.95 * base_quantity, high=1.05 * base_quantity
+
+                # TODO: Pct. as param. or sth.
+                quantity = self.cnorm(
+                    low=0.99 * base_quantity, high=1.01 * base_quantity
                 )
                 # TODO: What if 1.05 exceeds?
                 batches, total = get_from_containers(quantity, containers)
+
+                # Output is based on the effective quantity
+                # Consumables = 1:1
+                # Material depends on consumption_factor (effective quantity)
+                output_factor *= total / quantity
                 # TODO: Save batches + total
                 self.debug(f"Consumed {total:.2f} of {obj.uid}")
 
@@ -140,6 +148,8 @@ class Program(Base):
 
         if unlock:  # Needs to happen after consumption ^
             self._unlock_containers()
+
+        return output_factor
 
     def _unlock_containers(self):
         objs_to_delete = []
@@ -190,20 +200,21 @@ class Program(Base):
         # Unlock allows others to use the containers again
         end_time = self.env.now
         time_spent = end_time - start_time
-        self._consume_inputs(time_spent)
+        output_factor = self._consume_inputs(time_spent)
 
         for obj, d in self.bom.products.items():
             containers = find_containers_by_type(obj, machine.containers)
             for container in containers:
                 base_quantity = d["quantity"]
-                quantity = self.cnorm(  # TODO: Percentage as param or sth.
+                # TODO: Percentage as param or sth.
+                quantity = output_factor * self.cnorm(
                     low=0.95 * base_quantity, high=1.05 * base_quantity
                 )
                 batch = ProductBatch(
                     env=self.env,
                     product=obj,
                     batch_id=self.batch_id,
-                    quantity=quantity,
+                    quantity=int(quantity),
                     details={"start_time": start_time, "end_time": end_time},
                 )
                 container.put(batch)

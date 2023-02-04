@@ -38,7 +38,14 @@ def get_action(name, *args, **kwargs):
     return func
 
 
-def _action_procurement(block, content_uid, quantity, fail_proba=0):
+def _action_procurement(
+    block,
+    content_uid,
+    quantity,
+    quality=(1, 0.001),
+    consumption_factor=(1, 0.001),
+    fail_proba=0,
+):
     # TODO: Fail probability
     run = block.choice([False, True], p=[fail_proba, 1 - fail_proba])
     if not run:
@@ -58,6 +65,8 @@ def _action_procurement(block, content_uid, quantity, fail_proba=0):
             env=block.env,
             material=content,
             quantity=quantity,
+            quality=quality,
+            consumption_factor=consumption_factor,
             created_ts=block.now_dt.shift(hours=block.iuni(-90, -7)),
         )
         _, total_put = yield from put_into_material_containers(

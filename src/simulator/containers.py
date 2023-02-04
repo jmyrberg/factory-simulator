@@ -116,14 +116,29 @@ class MaterialContainer(Base):
                 ("n_batches", lambda x: len(x)),
                 ("quantity", lambda x: sum(b.quantity for b in x)),
                 (
+                    "effective_quantity",
+                    lambda x: sum(b.effective_quantity for b in x),
+                ),
+                (
                     "last_batch_id",
                     lambda x: x[-1].batch_id if len(x) > 0 else None,
                     "categorical",
+                ),
+                (
+                    "last_batch_quality",
+                    lambda x: x[-1].quality if len(x) > 0 else None,
+                    "numerical",
+                ),
+                (
+                    "last_batch_consumption_factor",
+                    lambda x: x[-1].consumption_factor if len(x) > 0 else None,
+                    "numerical",
                 ),
             ],
             name="batches",
         )
         if init is None:
+            # TODO: From procurement as well
             batch = MaterialBatch(
                 env, material, quantity=capacity, name="initial-material-batch"
             )
@@ -146,11 +161,7 @@ class MaterialContainer(Base):
         if isinstance(batch_or_quantity, MaterialBatch):
             batch = batch_or_quantity
         else:
-            batch = MaterialBatch(
-                env=self.env,
-                material=self.material,
-                quantity=batch_or_quantity,
-            )
+            raise TypeError("Input should be of type 'MaterialBatch'")
 
         if batch.quantity > self.free:
             self.warning(
@@ -199,12 +210,8 @@ class MaterialContainer(Base):
 
                 # ...and add to fetch batch
                 fetch_quantity += missing_quantity
-                fetch_batch = MaterialBatch(
-                    env=batch.env,
-                    material=batch.material,
-                    quantity=missing_quantity,
-                    batch_id=batch.batch_id,
-                    name=batch.name,
+                fetch_batch = MaterialBatch.from_existing(
+                    batch, missing_quantity
                 )
                 fetch_batches.append(fetch_batch)
             else:  # Last batch
@@ -331,7 +338,7 @@ def get_from_containers(quantity, containers, strategy="first"):
 
             if isinstance(got, list):  # Material
                 batches.extend(got)
-                total += sum(b.quantity for b in got)
+                total += sum(b.effective_quantity for b in got)
             else:  # Consumable
                 total += got
 

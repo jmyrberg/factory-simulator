@@ -209,17 +209,19 @@ class Base:
             else:
                 return int(round((high + low) / 2))
 
-    def norm(self, mu, sigma):
+    def norm(self, mu, sigma, force_randomize=False):
         """Random number from normal distribution."""
-        if self.randomize:
+        if self.randomize or force_randomize:
             return np.random.normal(mu, sigma)
         else:
             return mu
 
-    def pnorm(self, mu, sigma):
+    def pnorm(self, mu, sigma, force_randomize=False):
         """Positive random number from normal distribution."""
-        if self.randomize:
-            return np.abs(self.norm(mu, sigma))
+        if self.randomize or force_randomize:
+            return np.abs(
+                self.norm(mu, sigma, force_randomize=force_randomize)
+            )
         else:
             return np.abs(mu)
 

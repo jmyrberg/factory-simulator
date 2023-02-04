@@ -79,15 +79,15 @@ programs:
   - id: program1
     name: Program1
     bom: bom1
-    temp-factor: 1.0
+    temperature-factor: 1
   - id: program2
     name: Program2
     bom: bom2
-    temp-factor: 1.25
+    temperature-factor: 1.25
   - id: program3
     name: Program3
     bom: bom3
-    temp-factor: 4.0
+    temperature-factor: 1.5
 
 schedules:
   - id: operating-schedule
@@ -132,9 +132,11 @@ schedules:
         action:
           name: procurement
           kwargs:
-            fail_proba: 0.05
             content_uid: material1
             quantity: 600
+            quality: [1, 0.1]
+            consumption_factor: [1, 0.1]
+            fail_proba: 0.05
       - name: Cron(Fri 18:00, consumable1)
         cron: 00 18 * * 6
         duration-hours: 1

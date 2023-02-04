@@ -81,8 +81,8 @@ def make_programs(env, cfg_list, boms):
     for cfg in cfg_list:
         id_ = cfg.pop("id")
         bom_ = boms[cfg.pop("bom")]
-        if "temp-factor" in cfg:
-            cfg["temp_factor"] = cfg.pop("temp-factor")
+        if "temperature-factor" in cfg:
+            cfg["temp_factor"] = cfg.pop("temperature-factor")
 
         out[id_] = Program(id_, env, bom=bom_, **cfg)
 
