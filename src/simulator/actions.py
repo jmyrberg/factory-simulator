@@ -71,8 +71,11 @@ def _action_switch_program(block, program_id):
     # TODO: Simplify block/schedule events
     block.emit("action_started")
     machine = block.schedule.machine
+
     if machine is None or program_id is None:
         raise ValueError("Machine or program_id is None")
+
+    machine.is_planned_operating_time = True
 
     programs = [p for p in machine.programs if p.uid == program_id]
     if len(programs) == 0:
@@ -83,6 +86,9 @@ def _action_switch_program(block, program_id):
         block.env.process(machine._automated_program_switch(program))
 
     yield block.events["stopped"]
+
+    machine.is_planned_operating_time = False
+
     if machine is not None and machine.state not in ["off", "on", "error"]:
         block.debug("Switching to on")
         block.env.process(machine._switch_on(priority=-2))

@@ -1,7 +1,6 @@
 """Machine in a factory."""
 
 
-import numpy as np
 import simpy
 
 from src.simulator.base import Base
@@ -11,7 +10,11 @@ from src.simulator.causes import (
     ManualStopProductionCause,
     ManualSwitchOffCause,
 )
-from src.simulator.issues import OverheatIssue, ProductionIssue, PartBrokenIssue
+from src.simulator.issues import (
+    OverheatIssue,
+    PartBrokenIssue,
+    ProductionIssue,
+)
 from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
@@ -23,6 +26,7 @@ class Machine(Base):
     production_interruption_ongoing = AttributeMonitor()
     production_interrupt_code = AttributeMonitor()
     temperature = AttributeMonitor("numerical")
+    is_planned_operating_time = AttributeMonitor()
 
     def __init__(
         self,
@@ -59,6 +63,7 @@ class Machine(Base):
         self.states = ["off", "on", "production", "error"]
         self.production_interruption_ongoing = False
         self.production_interrupt_code = 0
+        self.is_planned_operating_time = False  # Controlled by schedule action
 
         self.sensors = [
             MachineTemperatureSensor(
@@ -129,16 +134,16 @@ class Machine(Base):
     def _machine_break_proc(self):
         parts = [
             {
-                'part_name': 'motor',
-                'needs_maintenance': True,
-                'priority': 0,
-                'difficulty': 6
+                "part_name": "motor",
+                "needs_maintenance": True,
+                "priority": 0,
+                "difficulty": 6,
             },
             {
-                'part_name': 'bearing',
-                'needs_maintenance': False,
-                'priority': 5,
-                'difficulty': 0.5
+                "part_name": "bearing",
+                "needs_maintenance": False,
+                "priority": 5,
+                "difficulty": 0.5,
             },
         ]
         yield self.env.timeout(0)
@@ -151,7 +156,7 @@ class Machine(Base):
                 yield self.events["switched_on"]
                 yield self.wjitter()
 
-            self.warning(f'Machine part broken: {issue}')
+            self.warning(f"Machine part broken: {issue}")
             yield self.env.process(self._switch_error(issue))
 
     @ignore_causes()

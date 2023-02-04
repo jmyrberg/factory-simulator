@@ -5,7 +5,11 @@ import simpy
 
 from src.simulator.base import Base
 from src.simulator.causes import WorkStoppedCause
-from src.simulator.issues import LowContainerLevelIssue, UnknownIssue, PartBrokenIssue
+from src.simulator.issues import (
+    LowContainerLevelIssue,
+    PartBrokenIssue,
+    UnknownIssue,
+)
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
 
@@ -100,18 +104,18 @@ class Operator(Base):
 
     def _fix_issue(self, issue):
         if isinstance(issue, LowContainerLevelIssue):
-            self.debug('Fixing low container level issue')
+            self.debug("Fixing low container level issue")
             for container in issue.containers:
                 yield self.env.process(container.put_full())
             yield self.env.process(self.machine.clear_issue())
         elif isinstance(issue, PartBrokenIssue):
             if issue.needs_maintenance:
-                self.debug('Adding part broken issue to maintenance team')
+                self.debug("Adding part broken issue to maintenance team")
                 yield from self.machine.maintenance.add_issue(
                     issue, priority=issue.priority
                 )
             else:
-                self.info('Fixing part broken issue')
+                self.info("Fixing part broken issue")
                 duration = issue.difficulty * self.hours(1)
                 yield self.wnorm(0.9 * duration, 1.1 * duration)
                 yield self.env.process(self.machine.clear_issue())

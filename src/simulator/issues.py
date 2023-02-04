@@ -79,7 +79,7 @@ class PartBrokenIssue(BaseIssue):
         priority=0,
         code=200,
         difficulty=1,  # ~hours to fix by operator
-        **kwargs
+        **kwargs,
     ):
         super().__init__(name=part_name, **kwargs)
         self.machine = machine

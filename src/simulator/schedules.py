@@ -236,9 +236,10 @@ class OperatingSchedule(Schedule):
         super().__init__(env, blocks=blocks, name=name, uid=uid)
 
         self.machine = None
-        self.procs["on_machine_start"] = self.env.process(
-            self._on_machine_start()
-        )
+
+        self.procs = {
+            "on_machine_start": self.env.process(self._on_machine_start())
+        }
         self.events["machine_assigned"] = self.env.event()
 
     def assign_machine(self, machine):

@@ -4,7 +4,11 @@
 import simpy
 
 from src.simulator.base import Base
-from src.simulator.issues import OtherCustomerIssue, ScheduledMaintenanceIssue, PartBrokenIssue
+from src.simulator.issues import (
+    OtherCustomerIssue,
+    PartBrokenIssue,
+    ScheduledMaintenanceIssue,
+)
 
 
 class Maintenance(Base):
@@ -49,15 +53,17 @@ class Maintenance(Base):
             machine = issue.machine
 
             # Turn off no matter what
-            self.env.process(machine.press_off(force=True))  # Should take executor
+            self.env.process(
+                machine.press_off(force=True)
+            )  # Should take executor
             yield machine.events["switched_off"]
 
             with machine.ui.request(-99) as ui:
                 yield ui
-                self.debug('Locked UI')
+                self.debug("Locked UI")
                 with machine.execute.request(-99) as executor:
                     yield executor
-                    self.debug('Locked executor')
+                    self.debug("Locked executor")
 
                     real_duration = duration + self.minutes(self.iuni(-60, 60))
                     self.debug(f"Waiting {real_duration} seconds")
@@ -69,7 +75,7 @@ class Maintenance(Base):
             yield self.wnorm(0.9 * duration, 1.1 * duration)
 
             self.env.process(machine.clear_issue())
-            yield machine.events['issue_cleared']
+            yield machine.events["issue_cleared"]
         else:
             self.warning(f"Unknown issue: {issue}")
             yield self.wnorm(self.hours(self.iuni(3, 6)))
