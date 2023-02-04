@@ -28,14 +28,14 @@ class CSVExporter(Exporter):
         self,
         env,
         filepath: str,
-        names=None,
+        collector=None,
         interval_secs=60,
         name="csv-exporter",
         uid=None,
     ):
         super().__init__(env, name=name, uid=uid)
         self.filepath = filepath
-        self.names = names
+        self.collector = collector
         self.interval_secs = interval_secs
 
         # Internal
@@ -53,19 +53,36 @@ class CSVExporter(Exporter):
             state = self.env.factory.state
 
             if self.writer is None:
-                if self.names is None:
+                if self.collector is None:
                     self.fieldnames = list(state.keys())
+                    header = self.fieldnames
                 else:
-                    self.fieldnames = self.names
+                    self.fieldnames = list(
+                        self.collector["variables"]
+                    )
+                    header = [
+                        self.collector["variables"][field]["name"]
+                        for field in self.fieldnames
+                    ]
 
                 self.info(f"Fieldnames: {self.fieldnames!r}")
                 self.writer = csv.DictWriter(
-                    self.file, fieldnames=self.fieldnames
+                    self.file, fieldnames=header
                 )
                 self.writer.writeheader()
 
             # Data
-            row = {k: state.get(k) for k in self.fieldnames}
+            row = {}
+            for field in self.fieldnames:
+                if self.collector is not None:
+                    key = self.collector["variables"][field]["name"]
+                    value_map = self.collector["variables"][field]["value_map"]
+                else:
+                    key = field
+                    value_map = lambda x: x
+
+                row[key] = value_map(state.get(field))
+
             self.writer.writerow(row)
             yield self.env.timeout(self.interval_secs)
 

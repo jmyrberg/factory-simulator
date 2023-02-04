@@ -2,6 +2,7 @@
 
 
 from copy import deepcopy
+from types import FunctionType
 
 import yaml
 
@@ -200,7 +201,36 @@ def make_sensors(env, cfg_list):
     return out
 
 
-def make_exporters(env, cfg_list):
+def make_collectors(env, cfg_list):
+    cfg_list = deepcopy(cfg_list)
+    out = {}
+    for cfg in cfg_list:
+        id_ = cfg.pop("id")
+        name = cfg.get("name", id_)
+
+        out_variables = {}
+        for var_cfg in cfg["variables"]:
+            var_id = var_cfg["id"]
+            var_name = var_cfg["name"] or var_cfg["id"]
+
+            func_str = var_cfg["value-map"] or "lambda x: x"
+            code_obj = compile(func_str, '<string>', 'exec')
+            var_value_map = FunctionType(code_obj.co_consts[0], globals())
+
+            out_variables[var_id] = {
+                "name": var_name,
+                "value_map": var_value_map
+            }
+
+        out[id_] = {
+            "name": name,
+            "variables": out_variables
+        }
+
+    return out
+
+
+def make_exporters(env, cfg_list, collectors):
     cfg_list = deepcopy(cfg_list)
     out = {}
     for cfg in cfg_list:
@@ -213,6 +243,8 @@ def make_exporters(env, cfg_list):
             kwargs["names"] = cfg["names"]
         if "interval-secs" in cfg:
             kwargs["interval_secs"] = cfg["interval-secs"]
+        if "collector" in collectors:
+            kwargs["collector"] = collectors["collector"]
 
         out[id_] = cls(env, uid=id_, **kwargs)
 
@@ -241,7 +273,8 @@ def parse_config(env, path: str):
         env, cfg["machines"], containers, programs, schedules, maintenance
     )
     operators = make_operators(env, cfg["operators"], machines)
-    exporters = make_exporters(env, cfg.get("exporters", []))
+    collectors = make_collectors(env, cfg.get("collectors", []))
+    exporters = make_exporters(env, cfg.get("exporters", []), collectors)
 
     # TODO: Needed?
     # sensors = make_sensors(env, cfg["sensors"])

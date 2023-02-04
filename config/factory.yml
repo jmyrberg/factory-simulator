@@ -165,30 +165,78 @@ operators:
     name: John
     machine: machine1
 
+collectors:
+  - id: collector
+    name: Variable collector
+    variables:
+      - id: factory.datetime
+        name: Factory.Datetime
+        value-map: >
+          lambda x: x.strftime("%Y-%m-%d %H:%M:00")
+      - id: machine1.state
+        name: Machine.State
+        value-map: >
+          lambda x: {
+            "off": 0,
+            "on": 1,
+            "production": 2,
+            "error": 3
+          }.get(x, x)
+      - id: machine1.production_interrupt_code
+        name: Machine.ProductionInterruptCode
+        value-map: 
+      - id: machine1-temperature-sensor.temperature
+        name: Machine.Temperature
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: machine1.is_planned_operating_time
+        name: Machine.IsPlannedOperatingTime
+        value-map: 
+      - id: program1.consumption_consumable1
+        name: Program1.Consumable.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program1.consumption_material1
+        name: Program1.Material.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program1.latest_batch_id_material1
+        name: Program1.Material.MaterialId
+        value-map: 
+      - id: program1.product_quantity_product1
+        name: Program1.Product1.Quantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+      - id: program2.consumption_consumable1
+        name: Program2.Consumable.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program2.consumption_material1
+        name: Program2.Material.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program2.latest_batch_id_material1
+        name: Program2.Material.MaterialId
+        value-map: 
+      - id: program2.product_quantity_product2
+        name: Program2.Product2.Quantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+      - id: program3.consumption_consumable1
+        name: Program3.Consumable.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program3.consumption_material1
+        name: Program3.Material.Consumption
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: program3.latest_batch_id_material1
+        name: Program3.Material.MaterialId
+        value-map: 
+      - id: program3.product_quantity_product3
+        name: Program3.Product3.Quantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+      - id: consumablecontainer1.consumablecontainer1_post_level
+        name: ConsumableContainer.Quantity
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+      - id: materialcontainer1.batches_quantity
+        name: MaterialContainer.Quantity
+        value-map: "lambda x: round(x, 2) if x is not None else x"
+
 exporters:
   - id: csv-exporter
     type: csv
     filepath: results/run.csv
     interval-secs: 60
-    names:
-      [
-        factory.datetime,
-        machine1.state,
-        machine1.production_interrupt_code,
-        machine1-temperature-sensor.temperature,
-        machine1.is_planned_operating_time,
-        program1.consumption_consumable1,
-        program1.consumption_material1,
-        program1.latest_batch_id_material1,
-        program1.product_quantity_product1,
-        program2.consumption_consumable1,
-        program2.consumption_material1,
-        program2.latest_batch_id_material1,
-        program2.product_quantity_product2,
-        program3.consumption_consumable1,
-        program3.consumption_material1,
-        program3.latest_batch_id_material1,
-        program3.product_quantity_product3,
-        consumablecontainer1.consumablecontainer1_post_level,
-        materialcontainer1.batches_quantity,
-      ]
+    collector: collector
