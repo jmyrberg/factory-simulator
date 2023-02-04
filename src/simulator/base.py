@@ -45,7 +45,9 @@ class Base:
 
     @property
     def data_last(self):
-        return {k: v[-1] for k, v in self.env.data.items()}
+        return {
+            k: v[-1] if len(v) > 0 else None for k, v in self.env.data.items()
+        }
 
     @property
     def data_last_df(self):

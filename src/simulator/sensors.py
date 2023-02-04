@@ -4,6 +4,7 @@
 import numpy as np
 
 from src.simulator.base import Base
+from src.simulator.issues import OverheatIssue
 from src.simulator.utils import AttributeMonitor, wait_factory
 
 
@@ -58,6 +59,23 @@ class MachineTemperatureSensor(Sensor):
             "error": -5,
         }
 
+        self.events = {
+            "temperature_changed": self.env.event(),
+        }
+        self.procs = {
+            "temp_monitor": self.env.process(self._temp_monitor_proc()),
+        }
+
+    def _temp_monitor_proc(self):
+        while True:
+            yield self.events["temperature_changed"]
+            if self.value > 80 and self.machine.state != "error":
+                issue = OverheatIssue(self, self.value, 80)
+                self.env.process(self.machine._switch_error(issue))
+                yield self.machine.events["switched_error"]
+            elif self.value > 70:
+                self.warning(f"Temperature very high: {self.value}")
+
     def run(self):
         # Start main loop only when factory is accessible
         room_temp_sensor = [
@@ -94,6 +112,10 @@ class MachineTemperatureSensor(Sensor):
             delta_room = (room_temp - temp) / 5 * duration_hours
 
             delta_mode = self.change_per_hour[state] * duration_hours
+            if state == "production":
+                program_temp_factor = self.machine.program.temp_factor
+                delta_mode *= program_temp_factor
+
             maybe_new_temp = temp + delta_mode + delta_room
             noise = self.norm(0, duration_hours * 10)
             new_temp = max(room_temp, maybe_new_temp) + noise
@@ -103,6 +125,7 @@ class MachineTemperatureSensor(Sensor):
             # Sensor is updated only if update is from timeout
             if timeout in res:
                 self.value = round(temp, self.decimals)
+                self.emit("temperature_changed")
                 # self.debug(f"Value updated: {self.value:.2f}")
 
 

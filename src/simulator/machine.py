@@ -1,6 +1,7 @@
 """Machine in a factory."""
 
 
+import numpy as np
 import simpy
 
 from src.simulator.base import Base
@@ -10,11 +11,7 @@ from src.simulator.causes import (
     ManualStopProductionCause,
     ManualSwitchOffCause,
 )
-from src.simulator.issues import (
-    OverheatIssue,
-    PartBrokenIssue,
-    ProductionIssue,
-)
+from src.simulator.issues import PartBrokenIssue, ProductionIssue
 from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
@@ -25,6 +22,7 @@ class Machine(Base):
     program = AttributeMonitor()
     production_interruption_ongoing = AttributeMonitor()
     production_interrupt_code = AttributeMonitor()
+    error_code = AttributeMonitor()
     temperature = AttributeMonitor("numerical")
     is_planned_operating_time = AttributeMonitor()
 
@@ -63,6 +61,7 @@ class Machine(Base):
         self.states = ["off", "on", "production", "error"]
         self.production_interruption_ongoing = False
         self.production_interrupt_code = 0
+        self.error_code = 0
         self.is_planned_operating_time = False  # Controlled by actions
 
         self.sensors = [
@@ -110,26 +109,12 @@ class Machine(Base):
         }
         self.procs = {
             "init": self.env.process(self._init()),
-            "machine_break": self.env.process(self._machine_break_proc())
-            # "temperature_monitor": self.env.process(
-            #     self._temperature_monitor_proc()
-            # ),
+            "machine_break": self.env.process(self._machine_break_proc()),
         }
 
     def _init(self):
         if self.schedule is not None:
             yield self.env.process(self.schedule.assign_machine(self))
-
-    def _temperature_monitor_proc(self):
-        # TODO: Re-do based on sensors
-        yield self.env.timeout(2)
-        while True:
-            yield self.events["temperature_change"]
-            if self.temperature > 80:
-                issue = OverheatIssue(self.temperature, 80)
-                yield self.env.process(self._trigger_issue(issue))
-            elif self.temperature > 70:
-                self.warning(f"Temperature very high: {self.temperature}")
 
     def _machine_break_proc(self):
         parts = [
@@ -138,18 +123,27 @@ class Machine(Base):
                 "needs_maintenance": True,
                 "priority": 0,
                 "difficulty": 6,
+                "code": 200 + 1,
+                "weight": 1,
             },
             {
                 "part_name": "bearing",
                 "needs_maintenance": False,
                 "priority": 5,
                 "difficulty": 0.5,
+                "code": 200 + 2,
+                "weight": 5,
             },
         ]
+        weights = np.array(
+            [part.pop("weight") for part in parts], dtype="float"
+        )
+        weights /= weights.sum()
+
         yield self.env.timeout(0)
         while True:
             yield self.wnorm(self.hours(12 * 1), self.hours(12 * 2))
-            part = self.choice(parts)
+            part = self.choice(parts, p=weights)
             issue = PartBrokenIssue(machine=self, **part)
 
             if self.state == "off":
@@ -589,6 +583,7 @@ class Machine(Base):
 
                 yield self.wjitter()
                 self.state = "error"
+                self.error_code = issue.code
                 self.emit("switched_error")
 
                 # Try stop production
@@ -632,6 +627,7 @@ class Machine(Base):
             self.emit("clearing_issue")
             yield self.wnorm(20)
             yield self.env.process(self.reboot())
+            self.error_code = 0
             self.emit("issue_cleared")
         else:
             self.warning("No issues to be cleared")

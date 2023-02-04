@@ -57,18 +57,14 @@ class CSVExporter(Exporter):
                     self.fieldnames = list(state.keys())
                     header = self.fieldnames
                 else:
-                    self.fieldnames = list(
-                        self.collector["variables"]
-                    )
+                    self.fieldnames = list(self.collector["variables"])
                     header = [
                         self.collector["variables"][field]["name"]
                         for field in self.fieldnames
                     ]
 
                 self.info(f"Fieldnames: {self.fieldnames!r}")
-                self.writer = csv.DictWriter(
-                    self.file, fieldnames=header
-                )
+                self.writer = csv.DictWriter(self.file, fieldnames=header)
                 self.writer.writeheader()
 
             # Data
@@ -79,7 +75,7 @@ class CSVExporter(Exporter):
                     value_map = self.collector["variables"][field]["value_map"]
                 else:
                     key = field
-                    value_map = lambda x: x
+                    value_map = lambda x: x  # noqa: E731
 
                 row[key] = value_map(state.get(field))
 

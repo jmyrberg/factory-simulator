@@ -79,12 +79,15 @@ programs:
   - id: program1
     name: Program1
     bom: bom1
+    temp-factor: 1.0
   - id: program2
     name: Program2
     bom: bom2
+    temp-factor: 1.25
   - id: program3
     name: Program3
     bom: bom3
+    temp-factor: 4.0
 
 schedules:
   - id: operating-schedule
@@ -184,13 +187,13 @@ collectors:
           }.get(x, x)
       - id: machine1.production_interrupt_code
         name: Machine.ProductionInterruptCode
-        value-map: 
+        value-map:
       - id: machine1-temperature-sensor.temperature
         name: Machine.Temperature
         value-map: "lambda x: round(x, 2) if x is not None else x"
       - id: machine1.is_planned_operating_time
         name: Machine.IsPlannedOperatingTime
-        value-map: 
+        value-map:
       - id: program1.consumption_consumable1
         name: Program1.Consumable.Consumption
         value-map: "lambda x: round(x, 2) if x is not None else x"
@@ -199,7 +202,7 @@ collectors:
         value-map: "lambda x: round(x, 2) if x is not None else x"
       - id: program1.latest_batch_id_material1
         name: Program1.Material.MaterialId
-        value-map: 
+        value-map:
       - id: program1.product_quantity_product1
         name: Program1.Product1.Quantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else x"
@@ -211,7 +214,7 @@ collectors:
         value-map: "lambda x: round(x, 2) if x is not None else x"
       - id: program2.latest_batch_id_material1
         name: Program2.Material.MaterialId
-        value-map: 
+        value-map:
       - id: program2.product_quantity_product2
         name: Program2.Product2.Quantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else x"
@@ -223,7 +226,7 @@ collectors:
         value-map: "lambda x: round(x, 2) if x is not None else x"
       - id: program3.latest_batch_id_material1
         name: Program3.Material.MaterialId
-        value-map: 
+        value-map:
       - id: program3.product_quantity_product3
         name: Program3.Product3.Quantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else x"

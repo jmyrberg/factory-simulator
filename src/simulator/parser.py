@@ -81,6 +81,9 @@ def make_programs(env, cfg_list, boms):
     for cfg in cfg_list:
         id_ = cfg.pop("id")
         bom_ = boms[cfg.pop("bom")]
+        if "temp-factor" in cfg:
+            cfg["temp_factor"] = cfg.pop("temp-factor")
+
         out[id_] = Program(id_, env, bom=bom_, **cfg)
 
     return out
@@ -214,18 +217,15 @@ def make_collectors(env, cfg_list):
             var_name = var_cfg["name"] or var_cfg["id"]
 
             func_str = var_cfg["value-map"] or "lambda x: x"
-            code_obj = compile(func_str, '<string>', 'exec')
+            code_obj = compile(func_str, "<string>", "exec")
             var_value_map = FunctionType(code_obj.co_consts[0], globals())
 
             out_variables[var_id] = {
                 "name": var_name,
-                "value_map": var_value_map
+                "value_map": var_value_map,
             }
 
-        out[id_] = {
-            "name": name,
-            "variables": out_variables
-        }
+        out[id_] = {"name": name, "variables": out_variables}
 
     return out
 

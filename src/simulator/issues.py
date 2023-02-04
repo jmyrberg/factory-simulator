@@ -41,8 +41,9 @@ class OverheatIssue(BaseIssue):
     priority = 5
     needs_maintenance = False
 
-    def __init__(self, realized, limit, **kwargs):
+    def __init__(self, sensor, realized, limit, **kwargs):
         super().__init__(**kwargs)
+        self.sensor = sensor
         self.realized = realized
         self.limit = limit
 

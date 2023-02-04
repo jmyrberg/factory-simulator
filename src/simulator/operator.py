@@ -7,6 +7,7 @@ from src.simulator.base import Base
 from src.simulator.causes import WorkStoppedCause
 from src.simulator.issues import (
     LowContainerLevelIssue,
+    OverheatIssue,
     PartBrokenIssue,
     UnknownIssue,
 )
@@ -119,6 +120,15 @@ class Operator(Base):
                 duration = issue.difficulty * self.hours(1)
                 yield self.wnorm(0.9 * duration, 1.1 * duration)
                 yield self.env.process(self.machine.clear_issue())
+        elif isinstance(issue, OverheatIssue):
+            wait_until_temp = 0.75 * issue.limit
+            self.debug(f"Waiting until temperature below {wait_until_temp}")
+            while True:  # Wait until low enough temperature
+                yield issue.sensor.events["temperature_changed"]
+                if issue.sensor.value < wait_until_temp:
+                    break
+
+            yield self.env.process(self.machine.clear_issue())
         else:
             raise UnknownIssue(f'No idea how to fix "{issue}"? :(')
 

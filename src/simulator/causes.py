@@ -5,7 +5,7 @@ class BaseCause(BaseException):
     code = 0
 
     def __init__(self, name=None):
-        self.name = name or ""
+        self.name = name or "BaseCause"
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.name!r})"
@@ -19,6 +19,7 @@ class ManualSwitchOffCause(BaseCause):
     def __init__(self, force=False, **kwargs):
         super().__init__(kwargs.get("name"))
         self.force = force
+        self.code += 900 * int(self.force)
 
 
 class ManualStopProductionCause(BaseCause):
@@ -29,6 +30,7 @@ class ManualStopProductionCause(BaseCause):
     def __init__(self, force=False, **kwargs):
         super().__init__(kwargs.get("name"))
         self.force = force
+        self.code += 900 * int(self.force)
 
 
 class AutomatedStopProductionCause(BaseCause):
@@ -39,6 +41,7 @@ class AutomatedStopProductionCause(BaseCause):
     def __init__(self, force=False, **kwargs):
         super().__init__(kwargs.get("name"))
         self.force = force
+        self.code += 900 * int(self.force)
 
 
 class ProgramSwitchCause(BaseCause):
@@ -49,6 +52,7 @@ class ProgramSwitchCause(BaseCause):
     def __init__(self, force=False, **kwargs):
         super().__init__(kwargs.get("name"))
         self.force = force
+        self.code += 900 * int(self.force)
 
 
 class WorkStoppedCause(BaseCause):

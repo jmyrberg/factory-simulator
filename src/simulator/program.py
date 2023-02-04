@@ -13,7 +13,11 @@ from src.simulator.containers import (
     get_from_containers,
     quantity_exists_in_containers,
 )
-from src.simulator.issues import ContainerMissingIssue, LowContainerLevelIssue
+from src.simulator.issues import (
+    BaseIssue,
+    ContainerMissingIssue,
+    LowContainerLevelIssue,
+)
 from src.simulator.product import ProductBatch
 from src.simulator.utils import AttributeMonitor
 
@@ -23,11 +27,14 @@ class Program(Base):
 
     state = AttributeMonitor()
 
-    def __init__(self, uid: str, env, bom, name="program") -> None:
+    def __init__(
+        self, uid: str, env, bom, temp_factor=1.0, name="program"
+    ) -> None:
         """Machine program."""
         super().__init__(env, name=name, uid=uid)
         self.uid = uid
         self.bom = bom
+        self.temp_factor = temp_factor
 
         # Internal states
         self.state = "off"
@@ -173,6 +180,8 @@ class Program(Base):
                 yield self.wnorm(time_left)
                 self.state = "success"
             elif isinstance(i.cause, BaseCause) and i.cause.force:
+                self.debug("Not waiting for current batch to finish")
+            elif isinstance(i.cause, BaseIssue):
                 self.debug("Not waiting for current batch to finish")
             else:
                 raise UnknownCause(i.cause)
