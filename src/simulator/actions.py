@@ -102,8 +102,12 @@ def _action_maintenance(block):
     machine = block.schedule.machine
     maintenance = machine.maintenance
     duration = block.duration_hours * 60 * 60
+
+    machine.is_planned_operating_time = False
+
     block.debug(f"Maintenance duration: {duration / 60 / 60} hours")
     issue = ScheduledMaintenanceIssue(machine, duration)
     block.env.process(maintenance.add_issue(issue))
+
     yield block.events["stopped"]
     block.emit("action_stopped")

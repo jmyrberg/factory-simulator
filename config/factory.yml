@@ -176,6 +176,7 @@ exporters:
         machine1.state,
         machine1.production_interrupt_code,
         machine1-temperature-sensor.temperature,
+        machine1.is_planned_operating_time,
         program1.consumption_consumable1,
         program1.consumption_material1,
         program1.latest_batch_id_material1,

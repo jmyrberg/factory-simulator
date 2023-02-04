@@ -63,7 +63,7 @@ class Machine(Base):
         self.states = ["off", "on", "production", "error"]
         self.production_interruption_ongoing = False
         self.production_interrupt_code = 0
-        self.is_planned_operating_time = False  # Controlled by schedule action
+        self.is_planned_operating_time = False  # Controlled by actions
 
         self.sensors = [
             MachineTemperatureSensor(
