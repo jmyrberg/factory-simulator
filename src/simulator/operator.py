@@ -127,7 +127,6 @@ class Operator(Base):
                 yield issue.sensor.events["temperature_changed"]
                 if issue.sensor.value < wait_until_temp:
                     break
-
             yield self.env.process(self.machine.clear_issue())
         else:
             raise UnknownIssue(f'No idea how to fix "{issue}"? :(')

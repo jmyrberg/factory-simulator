@@ -34,6 +34,7 @@ class Machine(Base):
         programs=None,
         default_program=None,
         maintenance=None,
+        part_fail_freq_days=(7, 31),
         name="machine",
         uid=None,
     ) -> None:
@@ -51,6 +52,7 @@ class Machine(Base):
         self.programs = programs
         self.program = default_program or self.programs[0]
         self.maintenance = maintenance
+        self.part_fail_freq_days = part_fail_freq_days
 
         # Internal states
         self.ui = self.with_monitor(simpy.PreemptiveResource(env), name="ui")
@@ -142,7 +144,8 @@ class Machine(Base):
 
         yield self.env.timeout(0)
         while True:
-            yield self.wnorm(self.hours(12 * 1), self.hours(12 * 2))
+            min_days, max_days = self.part_fail_freq_days
+            yield self.wnorm(self.days(min_days), self.days(max_days))
             part = self.choice(parts, p=weights)
             issue = PartBrokenIssue(machine=self, **part)
 
@@ -569,6 +572,8 @@ class Machine(Base):
         yield self.wjitter()
         if self.state not in ["on", "production"]:
             self.warning(f'Cant go from state "{self.state}" to "error"')
+            if self.state == "error":
+                self.warning("More than one error is not implemented!")
             return
 
         self.emit("issue_occurred", issue)

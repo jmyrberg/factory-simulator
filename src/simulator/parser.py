@@ -142,6 +142,8 @@ def make_machines(env, cfg_list, containers, programs, schedules, maintenance):
             d["default_program"] = programs[cfg["default-program"]]
         if "maintenance" in cfg:
             d["maintenance"] = maintenance[cfg["maintenance"]]
+        if "part-fail-freq-days" in cfg:
+            d["part_fail_freq_days"] = tuple(cfg["part-fail-freq-days"])
 
         out[id_] = Machine(env, uid=id_, **d)
 

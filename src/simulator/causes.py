@@ -34,7 +34,7 @@ class ManualStopProductionCause(BaseCause):
 
 
 class AutomatedStopProductionCause(BaseCause):
-    """Production is stopped manually."""
+    """Production is stopped automatically."""
 
     code = 3
 

@@ -38,8 +38,15 @@ def get_action(name, *args, **kwargs):
     return func
 
 
-def _action_procurement(block, content_uid, quantity):
+def _action_procurement(block, content_uid, quantity, fail_proba=0):
     # TODO: Fail probability
+    run = block.choice([False, True], p=[fail_proba, 1 - fail_proba])
+    if not run:
+        block.warning("Procurement will not be done due to chance")
+        block.emit("action_started")
+        block.emit("action_stopped", value=0)
+        return
+
     block.emit("action_started")
     # Find material or consumable object
     factory = block.env.factory

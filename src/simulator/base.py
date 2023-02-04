@@ -78,8 +78,10 @@ class Base:
             n = self.monitor - 1
             self.data[dkey] = self.data[dkey][-n:] + [dvalue]
 
-    def emit(self, name, value=None):
-        self.debug(f'Event - "{name}"')
+    def emit(self, name, value=None, skip_log=False):
+        if not skip_log:
+            self.debug(f'Event - "{name}"')
+
         self.events[name].succeed(value)
         self.events[name] = self.env.event()
 

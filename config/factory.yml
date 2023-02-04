@@ -132,6 +132,7 @@ schedules:
         action:
           name: procurement
           kwargs:
+            fail_proba: 0.05
             content_uid: material1
             quantity: 600
       - name: Cron(Fri 18:00, consumable1)
@@ -140,6 +141,7 @@ schedules:
         action:
           name: procurement
           kwargs:
+            fail_proba: 0.05
             content_uid: consumable1
             quantity: 400
 
@@ -162,6 +164,7 @@ machines:
         productcontainer3,
       ]
     maintenance: maintenance1
+    part-fail-freq-days: [7, 31]
 
 operators:
   - id: operator1
@@ -187,6 +190,9 @@ collectors:
           }.get(x, x)
       - id: machine1.production_interrupt_code
         name: Machine.ProductionInterruptCode
+        value-map:
+      - id: machine1.error_code
+        name: Machine.ErrorCode
         value-map:
       - id: machine1-temperature-sensor.temperature
         name: Machine.Temperature

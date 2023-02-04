@@ -67,14 +67,17 @@ class MachineTemperatureSensor(Sensor):
         }
 
     def _temp_monitor_proc(self):
+        warned_already = False
         while True:
             yield self.events["temperature_changed"]
             if self.value > 80 and self.machine.state != "error":
                 issue = OverheatIssue(self, self.value, 80)
                 self.env.process(self.machine._switch_error(issue))
                 yield self.machine.events["switched_error"]
-            elif self.value > 70:
+                warned_already = False
+            elif self.value > 70 and not warned_already:
                 self.warning(f"Temperature very high: {self.value}")
+                warned_already = True
 
     def run(self):
         # Start main loop only when factory is accessible
@@ -125,7 +128,7 @@ class MachineTemperatureSensor(Sensor):
             # Sensor is updated only if update is from timeout
             if timeout in res:
                 self.value = round(temp, self.decimals)
-                self.emit("temperature_changed")
+                self.emit("temperature_changed", skip_log=True)
                 # self.debug(f"Value updated: {self.value:.2f}")
 
 
@@ -186,7 +189,7 @@ class RoomTemperatureSensor(Sensor):
             n_machines = len(machine_temps)
             duration_hours = self.interval / 60 / 60
             delta_temp = machine_temp - prev_temp
-            delta_machine = delta_temp * n_machines * duration_hours
+            delta_machine = 2 * delta_temp * n_machines * duration_hours
 
         delta_h = self.hourly_delta[self.now_dt.hour]
         noise = self.norm(0, 0.5)
