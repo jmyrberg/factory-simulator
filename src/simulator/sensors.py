@@ -115,9 +115,18 @@ class MachineTemperatureSensor(Sensor):
             delta_room = (room_temp - temp) / 5 * duration_hours
 
             delta_mode = self.change_per_hour[state] * duration_hours
+
+            # Program and material batch quantity affects temperature
             if state == "production":
                 program_temp_factor = self.machine.program.temp_factor
-                delta_mode *= program_temp_factor
+                # Worse effective quality = hotter
+                # TODO: Quality should be set before a batch, not after
+                if self.machine.program.quality is not None:
+                    quality_factor = self.machine.program.quality
+                else:
+                    quality_factor = 1
+
+                delta_mode *= program_temp_factor / quality_factor
 
             maybe_new_temp = temp + delta_mode + delta_room
             noise = self.norm(0, duration_hours * 10)

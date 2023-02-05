@@ -39,6 +39,8 @@ class Program(Base):
         # Internal states
         self.state = "off"
         self.batch_id = None
+        self.quality = None  # Updated in run
+        self.output_factor = None  # Updated in run
         self.consumption = self.with_monitor(
             {},
             post=[  # TODO: Use UIDs instead of name
@@ -54,7 +56,7 @@ class Program(Base):
                 self.consumption[obj.uid] = 0
         self.product_quantity = self.with_monitor(
             {},
-            post=[  # TODO: Use UIDs instead of name
+            post=[
                 (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
                 for obj, d in self.bom.products.items()
             ],
@@ -113,6 +115,8 @@ class Program(Base):
     def _consume_inputs(self, time_spent, unlock=True):
         self.debug(f"Consuming inputs for {time_spent=:.2f}")
         output_factor = 1
+        qualities = []
+        total_quantity = 0
         for mtype in ["consumables", "materials"]:
             for obj, d in getattr(self.bom, mtype).items():
                 if obj not in self.locked_containers:
@@ -126,21 +130,28 @@ class Program(Base):
                 quantity = self.cnorm(
                     low=0.99 * base_quantity, high=1.01 * base_quantity
                 )
-                # TODO: What if 1.05 exceeds?
-                batches, total = get_from_containers(quantity, containers)
+                batches, total_effective = get_from_containers(
+                    quantity, containers
+                )
 
                 # Output is based on the effective quantity
                 # Consumables = 1:1
                 # Material depends on consumption_factor (effective quantity)
-                output_factor *= total / quantity
+                output_factor *= total_effective / quantity
                 # TODO: Save batches + total
-                self.debug(f"Consumed {total:.2f} of {obj.uid}")
+                self.debug(f"Consumed {total_effective:.2f} of {obj.uid}")
+
+                # Quality determines output quality - we take the weighted avg.
+                # Only material considered for the moment
+                # TODO: Same for consumables
+                qualities.extend([b.quantity * b.quality for b in batches])
+                total_quantity += sum(b.quantity for b in batches)
 
                 # Log consumption
                 if obj.uid not in self.consumption:
                     self.consumption[obj.uid] = 0
 
-                self.consumption[obj.uid] += total
+                self.consumption[obj.uid] += total_effective
 
                 # Log material id
                 if mtype == "materials":
@@ -149,7 +160,9 @@ class Program(Base):
         if unlock:  # Needs to happen after consumption ^
             self._unlock_containers()
 
-        return output_factor
+        quality = sum(qualities) / total_quantity if total_quantity > 0 else 1
+
+        return output_factor, quality
 
     def _unlock_containers(self):
         objs_to_delete = []
@@ -173,7 +186,16 @@ class Program(Base):
 
         # Run or interrupt
         # TODO: Run in a while loop with a given resolution
-        self.batch_id = uuid.uuid4().hex
+        product_str = ",".join(
+            list(map(lambda x: x.uid, self.bom.products.keys()))
+        )
+        created_ts = self.now_dt.strftime("%Y%m%d%H%M%S")
+        self.batch_id = (
+            f'{product_str.replace(" ", "").upper()}'
+            f'-{machine.uid.replace(" ", "").upper()}'
+            f"-{created_ts}"
+            f"-{uuid.uuid4().hex[:8].upper()}"
+        )
         start_time = self.env.now
         try:
             yield self.wnorm(duration)
@@ -200,26 +222,28 @@ class Program(Base):
         # Unlock allows others to use the containers again
         end_time = self.env.now
         time_spent = end_time - start_time
-        output_factor = self._consume_inputs(time_spent)
+        self.output_factor, self.quality = self._consume_inputs(time_spent)
 
         for obj, d in self.bom.products.items():
             containers = find_containers_by_type(obj, machine.containers)
             for container in containers:
                 base_quantity = d["quantity"]
                 # TODO: Percentage as param or sth.
-                quantity = output_factor * self.cnorm(
-                    low=0.95 * base_quantity, high=1.05 * base_quantity
+                quantity = self.output_factor * self.cnorm(
+                    low=0.99 * base_quantity, high=1.01 * base_quantity
                 )
                 batch = ProductBatch(
                     env=self.env,
                     product=obj,
                     batch_id=self.batch_id,
                     quantity=int(quantity),
+                    quality=self.quality,
                     details={"start_time": start_time, "end_time": end_time},
                 )
                 container.put(batch)
 
                 # Log outputs for this machine
+                # TODO: Could be removed and as productcontainer is similar
                 if obj.uid not in self.product_quantity:
                     self.product_quantity[obj.uid] = 0
                 self.product_quantity[obj.uid] += batch.quantity

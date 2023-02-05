@@ -4,12 +4,12 @@
 import logging
 from typing import List
 
+import numpy as np
 import simpy
 
 from src.simulator.base import Base
 from src.simulator.material import MaterialBatch
 from src.simulator.product import ProductBatch
-from src.simulator.utils import MonitoredList
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,8 @@ class ConsumableContainer(Base):
     def level(self):
         return self.container.level
 
-    def put_full(self):
-        yield from self.put(self.free)
+    def put_full(self, pct=1.0):
+        yield from self.put(pct * self.free)
 
     def put(self, quantity: float) -> float:
         """Yields."""
@@ -152,8 +152,15 @@ class MaterialContainer(Base):
     def level(self):
         return sum(b.quantity for b in self.batches)
 
-    def put_full(self):
-        yield from self.put(self.free)
+    def put_full(self, pct=1.0, quality=None, consumption_factor=None):
+        batch = MaterialBatch(
+            env=self.env,
+            material=self.material,
+            quantity=pct * self.free,
+            quality=quality,
+            consumption_factor=consumption_factor,
+        )
+        yield from self.put(batch)
 
     def put(self, batch_or_quantity: MaterialBatch | float) -> MaterialBatch:
         """Yields."""
@@ -238,14 +245,34 @@ class ProductContainer(Base):
         super().__init__(env, name=name, uid=uid)
         self.product = product
         self.batches = self.with_monitor(
-            MonitoredList(),
+            [],
             post=[
                 ("n_batches", lambda x: len(x)),
                 ("quantity", lambda x: sum(b.quantity for b in x)),
                 (
-                    "last_batch_id",
-                    lambda x: x[-1].batch_id if len(x) > 0 else None,
-                    "categorical",
+                    "failed_quantity",
+                    lambda x: sum(b.failed_quantity for b in x),
+                ),
+                (
+                    "success_quantity",
+                    lambda x: sum(b.success_quantity for b in x),
+                ),
+                # (
+                #     "last_batch_id",
+                #     lambda x: x[-1].batch_id if len(x) > 0 else None,
+                #     "categorical",
+                # ),
+                (
+                    "last_batch_quality",
+                    lambda x: x[-1].quality if len(x) > 0 else None,
+                    "numerical",
+                ),
+                (
+                    "average_quality",
+                    lambda x: np.mean([b.quality for b in x])
+                    if len(x) > 0
+                    else None,
+                    "numerical",
                 ),
             ],
             name="batches",

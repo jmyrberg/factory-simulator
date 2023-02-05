@@ -45,6 +45,7 @@ def _action_procurement(
     quality=(1, 0.001),
     consumption_factor=(1, 0.001),
     fail_proba=0,
+    batch_size=25,
 ):
     # TODO: Fail probability
     run = block.choice([False, True], p=[fail_proba, 1 - fail_proba])
@@ -61,16 +62,21 @@ def _action_procurement(
     containers = find_containers_by_type(content, factory.containers.values())
     yield block.env.timeout(60)  # TODO: Do properly and kill active block
     if isinstance(content, Material):
-        batch = MaterialBatch(
-            env=block.env,
-            material=content,
-            quantity=quantity,
-            quality=quality,
-            consumption_factor=consumption_factor,
-            created_ts=block.now_dt.shift(hours=block.iuni(-90, -7)),
-        )
+        n_batches = quantity // batch_size
+        batches = []
+        for _ in range(n_batches + 1):
+            batch = MaterialBatch(
+                env=block.env,
+                material=content,
+                quantity=batch_size,
+                quality=quality,
+                consumption_factor=consumption_factor,
+                created_ts=block.now_dt.shift(hours=block.iuni(-90, -7)),
+            )
+            batches.append(batch)
+
         _, total_put = yield from put_into_material_containers(
-            batches=[batch], containers=containers, strategy="first"
+            batches=batches, containers=containers, strategy="first"
         )
     elif isinstance(content, Consumable):
         total_put = yield from put_into_consumable_containers(

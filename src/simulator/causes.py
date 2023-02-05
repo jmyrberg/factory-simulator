@@ -34,12 +34,13 @@ class ManualStopProductionCause(BaseCause):
 
 
 class AutomatedStopProductionCause(BaseCause):
-    """Production is stopped automatically."""
+    """Production is stopped automatically due to an issue."""
 
     code = 3
 
-    def __init__(self, force=False, **kwargs):
+    def __init__(self, issue, force=False, **kwargs):
         super().__init__(kwargs.get("name"))
+        self.issue = issue
         self.force = force
         self.code += 900 * int(self.force)
 

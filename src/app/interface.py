@@ -1,4 +1,8 @@
-"""Interface that collects data from the factory into flat variables."""
+"""Interface that collects data from the factory into flat variables.
+
+
+TODO: Switch this whole module to use config collector.
+"""
 
 
 import asyncio

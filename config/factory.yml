@@ -1,7 +1,7 @@
 id: factory
 name: Factory
 randomize: true
-monitor: -1
+monitor: 1
 
 materials:
   - id: material1
@@ -126,19 +126,30 @@ schedules:
     name: ProcurementSchedule
     type: default
     blocks:
-      - name: Cron(Mon 6:00, material1)
-        cron: 00 6 * * 0
+      - name: Cron(Mon 6:00, material1, supplier1)
+        cron: 00 6 1,14,28 * *
         duration-hours: 1
         action:
           name: procurement
           kwargs:
             content_uid: material1
-            quantity: 600
-            quality: [1, 0.1]
+            quantity: 500
+            quality: [0.95, 0.1]
             consumption_factor: [1, 0.1]
             fail_proba: 0.05
+      - name: Cron(Mon 5:00, material1, supplier2)
+        cron: 00 5 7,21 * *
+        duration-hours: 1
+        action:
+          name: procurement
+          kwargs:
+            content_uid: material1
+            quantity: 500
+            quality: [0.75, 0.1]
+            consumption_factor: [1, 0.1]
+            fail_proba: 0.10
       - name: Cron(Fri 18:00, consumable1)
-        cron: 00 18 * * 6
+        cron: 00 18 * * 4
         duration-hours: 1
         action:
           name: procurement
@@ -189,61 +200,70 @@ collectors:
             "on": 1,
             "production": 2,
             "error": 3
-          }.get(x, x)
+          }.get(x, 0)
       - id: machine1.production_interrupt_code
         name: Machine.ProductionInterruptCode
-        value-map:
+        value-map: "lambda x: x if x is not None else 0"
       - id: machine1.error_code
         name: Machine.ErrorCode
-        value-map:
+        value-map: "lambda x: x if x is not None else 0"
       - id: machine1-temperature-sensor.temperature
         name: Machine.Temperature
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: machine1.is_planned_operating_time
         name: Machine.IsPlannedOperatingTime
-        value-map:
+        value-map: "lambda x: int(x) if x is not None else 0"
       - id: program1.consumption_consumable1
         name: Program1.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0"
       - id: program1.consumption_material1
         name: Program1.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0"
       - id: program1.latest_batch_id_material1
         name: Program1.Material.MaterialId
-        value-map:
-      - id: program1.product_quantity_product1
-        name: Program1.Product1.Quantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+        value-map: "lambda x: x if x is not None else 'null'"
+      - id: productcontainer1.batches_success_quantity
+        name: Product1.SuccessQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+      - id: productcontainer1.batches_failed_quantity
+        name: Product1.FailedQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
       - id: program2.consumption_consumable1
         name: Program2.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program2.consumption_material1
         name: Program2.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program2.latest_batch_id_material1
         name: Program2.Material.MaterialId
-        value-map:
-      - id: program2.product_quantity_product2
-        name: Program2.Product2.Quantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+        value-map: "lambda x: x if x is not None else 'null'"
+      - id: productcontainer2.batches_success_quantity
+        name: Product2.SuccessQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+      - id: productcontainer2.batches_failed_quantity
+        name: Product2.FailedQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
       - id: program3.consumption_consumable1
         name: Program3.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program3.consumption_material1
         name: Program3.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program3.latest_batch_id_material1
         name: Program3.Material.MaterialId
-        value-map:
-      - id: program3.product_quantity_product3
-        name: Program3.Product3.Quantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else x"
+        value-map: "lambda x: x if x is not None else 'null'"
+      - id: productcontainer3.batches_success_quantity
+        name: Product3.SuccessQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+      - id: productcontainer3.batches_failed_quantity
+        name: Product3.FailedQuantity
+        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
       - id: consumablecontainer1.consumablecontainer1_post_level
         name: ConsumableContainer.Quantity
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0"
       - id: materialcontainer1.batches_quantity
         name: MaterialContainer.Quantity
-        value-map: "lambda x: round(x, 2) if x is not None else x"
+        value-map: "lambda x: round(x, 2) if x is not None else 0"
 
 exporters:
   - id: csv-exporter

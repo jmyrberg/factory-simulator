@@ -5,6 +5,7 @@ import simpy
 
 from src.simulator.base import Base
 from src.simulator.causes import WorkStoppedCause
+from src.simulator.containers import MaterialContainer
 from src.simulator.issues import (
     LowContainerLevelIssue,
     OverheatIssue,
@@ -45,6 +46,7 @@ class Operator(Base):
         # Internal states
         self.state = "home"
         self.issue_ongoing = False
+        self.issue = None
         self.had_lunch = False
 
         # Internal resources
@@ -107,7 +109,15 @@ class Operator(Base):
         if isinstance(issue, LowContainerLevelIssue):
             self.debug("Fixing low container level issue")
             for container in issue.containers:
-                yield self.env.process(container.put_full())
+                if isinstance(container, MaterialContainer):
+                    yield self.env.process(
+                        container.put_full(
+                            pct=0.1,
+                            quality=(0.5, 0.1),
+                        )
+                    )
+                else:
+                    yield self.env.process(container.put_full(pct=0.1))
             yield self.env.process(self.machine.clear_issue())
         elif isinstance(issue, PartBrokenIssue):
             if issue.needs_maintenance:
@@ -137,8 +147,9 @@ class Operator(Base):
         # TODO: Have this process only running when at work
         while True:
             self.debug("Waiting for issues...")
-            issue = yield self.machine.events["issue_occurred"]
-            self.debug(f"Issue {issue} ongoing, but not noticed yet")
+            if not self.issue_ongoing:
+                self.issue = yield self.machine.events["issue_occurred"]
+            self.debug(f"Issue {self.issue} ongoing, but not noticed yet")
             self.issue_ongoing = True
 
             yield self.wnorm(10 * 60)  # TODO: From distribution
@@ -148,12 +159,15 @@ class Operator(Base):
                 yield attention
                 self.debug('Requested "attention" from "monitor_issues"')
 
-                self.info(f'Observed issue "{issue}" and attempting to fix...')
-                self.env.process(self._fix_issue(issue))
+                self.info(
+                    f'Observed issue "{self.issue}" and attempting to fix...'
+                )
+                self.env.process(self._fix_issue(self.issue))
 
                 # Wait until issue is cleared
                 yield self.machine.events["issue_cleared"]
                 self.issue_ongoing = False
+                self.issue = None
 
             self.debug('Released "attention"')
 
@@ -178,12 +192,15 @@ class Operator(Base):
                     self.info("No lunch today, it seems :(")
                 else:
                     self.debug("Planning to have lunch")
-                    self.env.process(self.machine.press_off())
-                    yield self.machine.events["switched_off"]
-                    self.env.process(self._lunch())
-                    self.emit("work_stopped")
+                    self.env.process(self.machine.press_off(force=False))
 
-                break
+                    timeout = self.env.timeout(120)
+                    switched_off = self.machine.events["switched_off"]
+                    res = yield timeout | switched_off
+                    if switched_off in res:
+                        self.env.process(self._lunch())
+                        self.emit("work_stopped")
+                        break
 
     @ignore_causes(WorkStoppedCause)
     def _monitor_home(self):
@@ -210,11 +227,14 @@ class Operator(Base):
                 # Switch off and go home
                 self.debug("Planning to go home")
                 self.env.process(self.machine.press_off(force=latest_passed))
-                yield self.machine.events["switched_off"]
-                self.env.process(self._home())
-                self.emit("work_stopped")
 
-                break
+                timeout = self.env.timeout(120)
+                switched_off = self.machine.events["switched_off"]
+                res = yield timeout | switched_off
+                if switched_off in res:
+                    self.env.process(self._home())
+                    self.emit("work_stopped")
+                    break
 
     @ignore_causes(WorkStoppedCause)
     def _monitor_production(self):

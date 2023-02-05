@@ -10,6 +10,8 @@ from src.simulator.causes import (
     BaseCause,
     ManualStopProductionCause,
     ManualSwitchOffCause,
+    ProgramSwitchCause,
+    UnknownCause,
 )
 from src.simulator.issues import PartBrokenIssue, ProductionIssue
 from src.simulator.sensors import MachineTemperatureSensor
@@ -241,6 +243,7 @@ class Machine(Base):
             return
 
         priority = -99999 if force else priority
+        require_executor = False if force else require_executor
         with self.execute.request(priority) as executor:
             if require_executor:
                 results = yield executor | self.env.timeout(max_wait)
@@ -415,7 +418,7 @@ class Machine(Base):
                 self.emit("switching_program_automatically")
 
                 if self.state != "on":
-                    cause = AutomatedStopProductionCause(force=force)
+                    cause = ProgramSwitchCause(force=force)
                     self.env.process(
                         self._switch_on(require_executor=False, cause=cause)
                     )
@@ -503,6 +506,10 @@ class Machine(Base):
             if not self.production_interruption_ongoing:
                 production_proc = self.procs.get("production")
                 if production_proc and production_proc.is_alive:
+                    code = (
+                        cause.code if cause is not None else UnknownCause.code
+                    )
+                    self.production_interrupt_code = code
                     production_proc.interrupt(cause)
             else:
                 self.warning(
@@ -517,6 +524,10 @@ class Machine(Base):
         on         -> production: Yes
         production -> production: No
         error      -> production: No
+
+        TODO: The whole issue/cause should be refactored, e.g. production issue
+              should cause production interruption cause to be
+              AutomaticStopProduction etc.
         """
         yield self.wjitter()
         # TODO: Failure probability etc.
@@ -528,6 +539,7 @@ class Machine(Base):
 
         self.emit("production_started")
         self.production_interrupt_code = 0
+        self.error_code = 0
         while True:
             try:
                 # Run one batch of program
@@ -560,6 +572,7 @@ class Machine(Base):
 
         self.production_interruption_ongoing = False
 
+    @ignore_causes()
     def _switch_error(self, issue):
         """Machine is in erroneous state.
 
@@ -592,13 +605,13 @@ class Machine(Base):
                 self.emit("switched_error")
 
                 # Try stop production
-                if self.state == "production":
-                    yield self.env.process(
-                        self._interrupt_production(
-                            issue, require_executor=False
-                        )
+                cause = AutomatedStopProductionCause(issue, force=True)
+                yield self.env.process(
+                    self._interrupt_production(
+                        cause=cause, require_executor=False
                     )
-                    yield self.events["production_stopped_from_error"]
+                )
+                self.emit("production_stopped_from_error")
 
                 # Give execution back once clear issue from operator
                 yield self.events["clearing_issue"]
