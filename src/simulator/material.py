@@ -51,10 +51,10 @@ class MaterialBatch(Base):
 
     @property
     def material_id(self):
-        return int(hashlib.sha256(
-            self.batch_id.encode('utf-8')).hexdigest(),
-            16
-        ) % 10 ** 8
+        return (
+            int(hashlib.sha256(self.batch_id.encode("utf-8")).hexdigest(), 16)
+            % 10**8
+        )
 
     @property
     def effective_quantity(self):

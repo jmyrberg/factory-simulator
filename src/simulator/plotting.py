@@ -30,9 +30,7 @@ def plot_timeline(df, end_dt, **kwargs):
         height=n_plots * 100,
         **kwargs,
     )
-    fig.for_each_annotation(
-        lambda a: a.update(text=a.text.split(" - ")[-1])
-    )
+    fig.for_each_annotation(lambda a: a.update(text=a.text.split(" - ")[-1]))
     fig.update_annotations(font_size=8)
     fig.update_yaxes(matches=None)
     fig.show()

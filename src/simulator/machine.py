@@ -71,14 +71,16 @@ class Machine(Base):
             {},
             post=[
                 (uid, lambda x: x[uid] if uid in x else 0)
-                for uid in set([
-                    uid
-                    for program in self.programs
-                    for uid in (
-                        program.get_material_uids()
-                        + program.get_consumable_uids()
-                    )
-                ])
+                for uid in set(
+                    [
+                        uid
+                        for program in self.programs
+                        for uid in (
+                            program.get_material_uids()
+                            + program.get_consumable_uids()
+                        )
+                    ]
+                )
             ],
             name="consumption",
         )
@@ -86,11 +88,13 @@ class Machine(Base):
             {},
             post=[
                 (uid, lambda x: x[uid] if uid in x else 0)
-                for uid in set([
-                    uid
-                    for program in self.programs
-                    for uid in program.get_material_uids()
-                ])
+                for uid in set(
+                    [
+                        uid
+                        for program in self.programs
+                        for uid in program.get_material_uids()
+                    ]
+                )
             ],
             name="material_id",
         )
@@ -98,11 +102,13 @@ class Machine(Base):
             {},
             post=[
                 (uid, lambda x: x[uid] if uid in x else "null")
-                for uid in set([
-                    uid
-                    for program in self.programs
-                    for uid in program.get_material_uids()
-                ])
+                for uid in set(
+                    [
+                        uid
+                        for program in self.programs
+                        for uid in program.get_material_uids()
+                    ]
+                )
             ],
             name="latest_batch_id",
         )

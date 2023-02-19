@@ -253,7 +253,8 @@ class Program(Base):
         end_time = self.env.now
         time_spent = end_time - start_time
         self.output_factor, self.quality = self._consume_inputs(
-            time_spent, machine=machine)
+            time_spent, machine=machine
+        )
 
         for obj, d in self.bom.products.items():
             containers = find_containers_by_type(obj, machine.containers)
