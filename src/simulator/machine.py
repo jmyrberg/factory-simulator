@@ -71,11 +71,41 @@ class Machine(Base):
             {},
             post=[
                 (uid, lambda x: x[uid] if uid in x else 0)
-                for uid in self._get_program_bom_components()  # non-dynamic
+                for uid in set([
+                    uid
+                    for program in self.programs
+                    for uid in (
+                        program.get_material_uids()
+                        + program.get_consumable_uids()
+                    )
+                ])
             ],
             name="consumption",
         )
-
+        self.material_id = self.with_monitor(
+            {},
+            post=[
+                (uid, lambda x: x[uid] if uid in x else 0)
+                for uid in set([
+                    uid
+                    for program in self.programs
+                    for uid in program.get_material_uids()
+                ])
+            ],
+            name="material_id",
+        )
+        self.latest_batch_id = self.with_monitor(
+            {},
+            post=[
+                (uid, lambda x: x[uid] if uid in x else "null")
+                for uid in set([
+                    uid
+                    for program in self.programs
+                    for uid in program.get_material_uids()
+                ])
+            ],
+            name="latest_batch_id",
+        )
         self.sensors = [
             MachineTemperatureSensor(
                 env, self, uid=f"{self.uid}-temperature-sensor"
@@ -128,31 +158,39 @@ class Machine(Base):
         if self.schedule is not None:
             yield self.env.process(self.schedule.assign_machine(self))
 
-    def _get_program_bom_components(self):
-        """Get unique program materials and consumables."""
-        comps = set()
-        for program in self.programs:
-            comps.update(list(program.consumption.keys()))
-
-        return sorted(list(comps))
-
     def _machine_break_proc(self):
         parts = [
             {
-                "part_name": "motor",
-                "needs_maintenance": True,
-                "priority": 0,
-                "difficulty": 6,
-                "code": 200 + 1,
-                "weight": 1,
-            },
-            {
-                "part_name": "bearing",
+                "part_name": "part1",
                 "needs_maintenance": False,
                 "priority": 5,
-                "difficulty": 0.5,
+                "difficulty": 1,
+                "code": 200 + 1,
+                "weight": 10,
+            },
+            {
+                "part_name": "part2",
+                "needs_maintenance": False,
+                "priority": 5,
+                "difficulty": 2,
                 "code": 200 + 2,
-                "weight": 5,
+                "weight": 8,
+            },
+            {
+                "part_name": "part3",
+                "needs_maintenance": True,
+                "priority": 0,
+                "difficulty": 4,
+                "code": 200 + 3,
+                "weight": 6,
+            },
+            {
+                "part_name": "part4",
+                "needs_maintenance": True,
+                "priority": 0,
+                "difficulty": 8,
+                "code": 200 + 4,
+                "weight": 4,
             },
         ]
         weights = np.array(

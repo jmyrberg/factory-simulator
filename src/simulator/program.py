@@ -83,6 +83,20 @@ class Program(Base):
             "program_issue": self.env.event(),
         }
 
+    def get_material_uids(self):
+        comps = set()
+        for obj, _ in getattr(self.bom, "materials").items():
+            comps.add(obj.uid)
+
+        return sorted(list(comps))
+
+    def get_consumable_uids(self):
+        comps = set()
+        for obj, _ in getattr(self.bom, "consumables").items():
+            comps.add(obj.uid)
+
+        return sorted(list(comps))
+
     def _check_inputs(
         self, machine, expected_duration, lock=True, safety_margin=2.0
     ):
@@ -151,17 +165,27 @@ class Program(Base):
                 # Program
                 if obj.uid not in self.consumption:
                     self.consumption[obj.uid] = 0
-                self.consumption[obj.uid] += total_effective
+                self.consumption[obj.uid] = (
+                    self.consumption[obj.uid] + total_effective
+                )
 
                 # Machine
                 if machine is not None:
                     if obj.uid not in machine.consumption:
                         machine.consumption[obj.uid] = 0
-                    machine.consumption[obj.uid] += total_effective
+                    machine.consumption[obj.uid] = (
+                        machine.consumption[obj.uid] + total_effective
+                    )
 
                 # Log material id
+                # Program
                 if mtype == "materials":
                     self.latest_batch_id[obj.uid] = batches[-1].batch_id
+
+                    # Machine
+                    if machine is not None:
+                        machine.latest_batch_id[obj.uid] = batches[-1].batch_id
+                        machine.material_id[obj.uid] = batches[-1].material_id
 
         if unlock:  # Needs to happen after consumption ^
             self._unlock_containers()

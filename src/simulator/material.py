@@ -1,6 +1,7 @@
 """Materials."""
 
 
+import hashlib
 import uuid
 
 from src.simulator.base import Base
@@ -47,6 +48,13 @@ class MaterialBatch(Base):
             )
         else:
             self.batch_id = batch_id
+
+    @property
+    def material_id(self):
+        return int(hashlib.sha256(
+            self.batch_id.encode('utf-8')).hexdigest(),
+            16
+        ) % 10 ** 8
 
     @property
     def effective_quantity(self):
