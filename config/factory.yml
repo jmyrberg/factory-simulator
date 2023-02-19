@@ -1,7 +1,7 @@
 id: factory
 name: Factory
 randomize: true
-monitor: 1
+monitor: -1
 
 materials:
   - id: material1
@@ -213,11 +213,11 @@ collectors:
       - id: machine1.is_planned_operating_time
         name: Machine.IsPlannedOperatingTime
         value-map: "lambda x: int(x) if x is not None else 0"
-      - id: program1.consumption_consumable1
-        name: Program1.Consumable.Consumption
+      - id: machine1.consumption_consumable1
+        name: Machine.Consumable.Consumption
         value-map: "lambda x: round(x, 2) if x is not None else 0"
-      - id: program1.consumption_material1
-        name: Program1.Material.Consumption
+      - id: machine1.consumption_material1
+        name: Machine.Material.Consumption
         value-map: "lambda x: round(x, 2) if x is not None else 0"
       - id: program1.latest_batch_id_material1
         name: Program1.Material.MaterialId
@@ -228,12 +228,6 @@ collectors:
       - id: productcontainer1.batches_failed_quantity
         name: Product1.FailedQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: program2.consumption_consumable1
-        name: Program2.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
-      - id: program2.consumption_material1
-        name: Program2.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program2.latest_batch_id_material1
         name: Program2.Material.MaterialId
         value-map: "lambda x: x if x is not None else 'null'"
@@ -243,12 +237,6 @@ collectors:
       - id: productcontainer2.batches_failed_quantity
         name: Product2.FailedQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: program3.consumption_consumable1
-        name: Program3.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
-      - id: program3.consumption_material1
-        name: Program3.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: program3.latest_batch_id_material1
         name: Program3.Material.MaterialId
         value-map: "lambda x: x if x is not None else 'null'"

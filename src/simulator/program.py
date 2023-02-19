@@ -43,7 +43,7 @@ class Program(Base):
         self.output_factor = None  # Updated in run
         self.consumption = self.with_monitor(
             {},
-            post=[  # TODO: Use UIDs instead of name
+            post=[
                 (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
                 for mtype in ["consumables", "materials"]
                 for obj, d in getattr(self.bom, mtype).items()
@@ -112,7 +112,7 @@ class Program(Base):
                         )
                         self.debug(f'Locked "{container}" for "{self}"')
 
-    def _consume_inputs(self, time_spent, unlock=True):
+    def _consume_inputs(self, time_spent, machine=None, unlock=True):
         self.debug(f"Consuming inputs for {time_spent=:.2f}")
         output_factor = 1
         qualities = []
@@ -148,10 +148,16 @@ class Program(Base):
                 total_quantity += sum(b.quantity for b in batches)
 
                 # Log consumption
+                # Program
                 if obj.uid not in self.consumption:
                     self.consumption[obj.uid] = 0
-
                 self.consumption[obj.uid] += total_effective
+
+                # Machine
+                if machine is not None:
+                    if obj.uid not in machine.consumption:
+                        machine.consumption[obj.uid] = 0
+                    machine.consumption[obj.uid] += total_effective
 
                 # Log material id
                 if mtype == "materials":
@@ -222,7 +228,8 @@ class Program(Base):
         # Unlock allows others to use the containers again
         end_time = self.env.now
         time_spent = end_time - start_time
-        self.output_factor, self.quality = self._consume_inputs(time_spent)
+        self.output_factor, self.quality = self._consume_inputs(
+            time_spent, machine=machine)
 
         for obj, d in self.bom.products.items():
             containers = find_containers_by_type(obj, machine.containers)

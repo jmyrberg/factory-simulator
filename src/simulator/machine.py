@@ -67,6 +67,14 @@ class Machine(Base):
         self.production_interrupt_code = 0
         self.error_code = 0
         self.is_planned_operating_time = False  # Controlled by actions
+        self.consumption = self.with_monitor(  # Updated within program
+            {},
+            post=[
+                (uid, lambda x: x[uid] if uid in x else 0)
+                for uid in self._get_program_bom_components()  # non-dynamic
+            ],
+            name="consumption",
+        )
 
         self.sensors = [
             MachineTemperatureSensor(
@@ -119,6 +127,14 @@ class Machine(Base):
     def _init(self):
         if self.schedule is not None:
             yield self.env.process(self.schedule.assign_machine(self))
+
+    def _get_program_bom_components(self):
+        """Get unique program materials and consumables."""
+        comps = set()
+        for program in self.programs:
+            comps.update(list(program.consumption.keys()))
+
+        return sorted(list(comps))
 
     def _machine_break_proc(self):
         parts = [
