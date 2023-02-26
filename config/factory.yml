@@ -33,16 +33,10 @@ containers:
   - id: productcontainer1
     name: ProductContainer(Product1)
     content: product1
-  - id: productcontainer2
-    name: ProductContainer(Product2)
-    content: product2
-  - id: productcontainer3
-    name: ProductContainer(Product3)
-    content: product3
 
 boms:
   - id: bom1
-    name: BOM(Product1)
+    name: BOM1
     materials:
       - id: material1
         consumption: 10
@@ -54,7 +48,7 @@ boms:
         quantity: 10
 
   - id: bom2
-    name: BOM(Product2)
+    name: BOM2
     materials:
       - id: material1
         consumption: 7
@@ -62,11 +56,11 @@ boms:
       - id: consumable1
         consumption: 4.75
     products:
-      - id: product2
+      - id: product1
         quantity: 10
 
   - id: bom3
-    name: BOM(Product3)
+    name: BOM3
     materials:
       - id: material1
         consumption: 13
@@ -74,7 +68,7 @@ boms:
       - id: consumable1
         consumption: 7.75
     products:
-      - id: product3
+      - id: product1
         quantity: 10
 
 programs:
@@ -175,8 +169,6 @@ machines:
         materialcontainer1,
         consumablecontainer1,
         productcontainer1,
-        productcontainer2,
-        productcontainer3,
       ]
     maintenance: maintenance1
     part-fail-freq-days: [7, 31]
@@ -236,22 +228,10 @@ collectors:
         name: Machine.Material.MaterialIdString
         value-map: "lambda x: x if x is not None else 'null'"
       - id: productcontainer1.batches_success_quantity
-        name: Product1.SuccessQuantity
+        name: Product.SuccessQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
       - id: productcontainer1.batches_failed_quantity
-        name: Product1.FailedQuantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: productcontainer2.batches_success_quantity
-        name: Product2.SuccessQuantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: productcontainer2.batches_failed_quantity
-        name: Product2.FailedQuantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: productcontainer3.batches_success_quantity
-        name: Product3.SuccessQuantity
-        value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
-      - id: productcontainer3.batches_failed_quantity
-        name: Product3.FailedQuantity
+        name: Product.FailedQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
       - id: consumablecontainer1.consumablecontainer1_post_level
         name: ConsumableContainer.Quantity
