@@ -1,7 +1,7 @@
 id: factory
 name: Factory
 randomize: true
-monitor: 1
+monitor: -1
 
 materials:
   - id: material1
@@ -24,10 +24,12 @@ containers:
     name: MaterialContainer(Material1)
     content: material1
     capacity: 1000
+    fill-rate: 400
   - id: consumablecontainer1
     name: ConsumableContainer(Consumable1)
     content: consumable1
     capacity: 500
+    fill-rate: 200
   - id: productcontainer1
     name: ProductContainer(Product1)
     content: product1

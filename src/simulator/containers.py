@@ -22,6 +22,7 @@ class ConsumableContainer(Base):
         capacity=100.0,
         init=None,
         fill_rate=50,
+        resolution=60,
         name="consumable-container",
         uid=None,
     ):
@@ -30,6 +31,7 @@ class ConsumableContainer(Base):
         self.consumable = consumable
         self.init = init
         self.fill_rate = fill_rate  # units per hour
+        self.resolution = resolution  # update time units
 
         self.lock = self.with_monitor(simpy.PriorityResource(env), name="lock")
         self.container = self.with_monitor(
@@ -62,19 +64,27 @@ class ConsumableContainer(Base):
                 f"{quantity} to fit the container"
             )
 
-        duration_hours = quantity / self.fill_rate
-
-        # TODO: Fill in discrete timepoints
+        duration_hours = self.pnorm(quantity / self.fill_rate, 0.01)
+        duration = self.hours(duration_hours)
+        time_left = duration
         self.debug(
-            "Filling container with {quantity:.2f} in "
+            f"Filling container with {quantity:.2f} in "
             f"{duration_hours:.2f} hours"
         )
-        yield self.wnorm(self.hours(duration_hours))
-        self.container.put(quantity)
 
-        self.debug(
-            f"New level after put: " f"{self.level:.2f} / {self.capacity:.2f}"
-        )
+        while time_left > 0:  # Fill in batches with given time resolution
+            to_wait = min(time_left, self.resolution)
+            add_quantity = to_wait / duration * quantity
+            yield self.env.timeout(to_wait)
+            self.container.put(add_quantity)
+
+            self.debug(
+                f"New level after put: "
+                f"{self.level:.2f} / {self.capacity:.2f}"
+            )
+
+            time_left -= to_wait
+
         return quantity
 
     def get(self, quantity: float) -> float:
@@ -97,6 +107,7 @@ class MaterialContainer(Base):
         material,
         capacity=100.0,
         fill_rate=50,
+        resolution=60,
         init=None,
         name="material-container",
         uid=None,
@@ -106,6 +117,7 @@ class MaterialContainer(Base):
         self.material = material
         self.capacity = capacity
         self.fill_rate = fill_rate
+        self.resolution = resolution
         self.init = init
 
         # Internal
@@ -175,18 +187,37 @@ class MaterialContainer(Base):
                 f"Adjusting batch quantity from {batch.quantity} to "
                 f"{self.free} to fit the container"
             )
-            batch.quantity = self.free
+            quantity = self.free
+        else:
+            quantity = batch.quantity
 
-        if batch.quantity > 0:
-            duration_hours = batch.quantity / self.fill_rate
-            # TODO: Fill in discrete timepoints
+        if quantity > 0:
+            # Init with zero quantity and little by little
+            batch.quantity = 0
+            self.batches.insert(0, batch)
+
+            duration_hours = self.pnorm(quantity / self.fill_rate, 0.01)
+            duration = self.hours(duration_hours)
+            time_left = duration
             self.debug(
-                f"Filling container with {batch.quantity:.2f} in "
+                f"Filling container with {quantity:.2f} in "
                 f"{duration_hours:.2f} hours"
             )
-            yield self.wnorm(self.hours(duration_hours))
+            while time_left > 0:  # Fill in batches with given time resolution
+                to_wait = min(time_left, self.resolution)
+                add_quantity = to_wait / duration * quantity
+                yield self.env.timeout(to_wait)
+                self.batches[0].quantity += add_quantity
 
-            self.batches.insert(0, batch)
+                self.debug(
+                    f"New level after put: "
+                    f"{self.level:.2f} / {self.capacity:.2f}"
+                )
+
+                time_left -= to_wait
+
+            assert np.isclose(self.batches[0].quantity, quantity)
+            self.batches[0].quantity = quantity
         else:
             self.warning("Batch quantity 0, wont fit into container")
 

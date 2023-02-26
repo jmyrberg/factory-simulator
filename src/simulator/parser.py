@@ -25,6 +25,18 @@ from src.simulator.schedules import CronBlock, OperatingSchedule, Schedule
 from src.simulator.sensors import get_sensor_by_type
 
 
+def normalize_keys(cfg):
+    new_cfg = deepcopy(cfg)
+    for key, value in cfg.items():
+        new_key = key
+        if "-" in key:
+            new_key = key.replace("-", "_")
+        del new_cfg[key]
+        new_cfg[new_key] = value
+
+    return new_cfg
+
+
 def cfg2obj(env, obj, cfg_list):
     cfg_list = deepcopy(cfg_list)
     out = {}
@@ -163,6 +175,7 @@ def make_containers(env, cfg_list, materials, consumables, products):
     cfg_list = deepcopy(cfg_list)
     out = {}
     for cfg in cfg_list:
+        cfg = normalize_keys(cfg)
         id_ = cfg.pop("id")
         content_id = cfg.pop("content")
         if content_id in materials:
