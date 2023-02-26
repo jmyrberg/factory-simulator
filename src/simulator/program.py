@@ -28,12 +28,19 @@ class Program(Base):
     state = AttributeMonitor()
 
     def __init__(
-        self, uid: str, env, bom, temp_factor=1.0, name="program"
+        self,
+        uid: str,
+        env,
+        bom,
+        duration_minutes=15,
+        temp_factor=1.0,
+        name="program",
     ) -> None:
         """Machine program."""
         super().__init__(env, name=name, uid=uid)
         self.uid = uid
         self.bom = bom
+        self.duration_minutes = duration_minutes
         self.temp_factor = temp_factor
 
         # Internal states
@@ -82,6 +89,12 @@ class Program(Base):
             "program_interrupted": self.env.event(),
             "program_issue": self.env.event(),
         }
+
+        for obj, d in self.bom.products.items():
+            self.info(
+                f"Max. hourly quantity {obj.uid}: "
+                f"{60 / self.duration_minutes * d['quantity']:.0f}"
+            )
 
     def get_material_uids(self):
         comps = set()
@@ -209,7 +222,9 @@ class Program(Base):
         self.emit("program_started")
         self.state = "on"
 
-        duration = 60 * 15  # TODO: Sample
+        duration = self.minutes(self.duration_minutes) + self.pnorm(
+            self.minutes(0), 1
+        )
 
         # Checks - lock prevents other consumption
         yield from self._check_inputs(machine, duration)
@@ -268,7 +283,7 @@ class Program(Base):
                     env=self.env,
                     product=obj,
                     batch_id=self.batch_id,
-                    quantity=int(quantity),
+                    quantity=max(int(quantity), 1),
                     quality=self.quality,
                     details={"start_time": start_time, "end_time": end_time},
                 )

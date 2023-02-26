@@ -1,7 +1,7 @@
 id: factory
 name: Factory
 randomize: true
-monitor: -1
+monitor: 1
 
 materials:
   - id: material1
@@ -39,10 +39,10 @@ boms:
     name: BOM1
     materials:
       - id: material1
-        consumption: 10
+        consumption: 12
     consumables:
       - id: consumable1
-        consumption: 6.25
+        consumption: 7
     products:
       - id: product1
         quantity: 10
@@ -51,10 +51,10 @@ boms:
     name: BOM2
     materials:
       - id: material1
-        consumption: 7
+        consumption: 8
     consumables:
       - id: consumable1
-        consumption: 4.75
+        consumption: 5
     products:
       - id: product1
         quantity: 10
@@ -63,10 +63,10 @@ boms:
     name: BOM3
     materials:
       - id: material1
-        consumption: 13
+        consumption: 14
     consumables:
       - id: consumable1
-        consumption: 7.75
+        consumption: 8
     products:
       - id: product1
         quantity: 10
@@ -75,15 +75,18 @@ programs:
   - id: program1
     name: Program1
     bom: bom1
-    temperature-factor: 1.1
+    duration-minutes: 60
+    temp-factor: 1.1
   - id: program2
     name: Program2
     bom: bom2
-    temperature-factor: 1.3
+    duration-minutes: 60
+    temp-factor: 1.2
   - id: program3
     name: Program3
     bom: bom3
-    temperature-factor: 1.6
+    duration-minutes: 60
+    temp-factor: 1.4
 
 schedules:
   - id: operating-schedule
@@ -129,10 +132,10 @@ schedules:
           name: procurement
           kwargs:
             content_uid: material1
-            quantity: 500
+            quantity: 800
             quality: [0.90, 0.1]
             consumption_factor: [1, 0.1]
-            fail_proba: 0.075
+            fail_proba: 0.1
       - name: Cron(Mon 5:00, material1, supplier2)
         cron: 00 5 7,21 * *
         duration-hours: 1
@@ -140,19 +143,19 @@ schedules:
           name: procurement
           kwargs:
             content_uid: material1
-            quantity: 500
-            quality: [0.70, 0.1]
-            consumption_factor: [1, 0.1]
-            fail_proba: 0.125
+            quantity: 800
+            quality: [0.80, 0.15]
+            consumption_factor: [1, 0.15]
+            fail_proba: 0.15
       - name: Cron(Fri 18:00, consumable1)
         cron: 00 18 * * 4
         duration-hours: 1
         action:
           name: procurement
           kwargs:
-            fail_proba: 0.075
             content_uid: consumable1
             quantity: 400
+            fail_proba: 0.1
 
 maintenance:
   - id: maintenance1
@@ -164,14 +167,9 @@ machines:
     schedule: operating-schedule
     programs: [program1, program2, program3]
     default-program: program1
-    containers:
-      [
-        materialcontainer1,
-        consumablecontainer1,
-        productcontainer1,
-      ]
+    containers: [materialcontainer1, consumablecontainer1, productcontainer1]
     maintenance: maintenance1
-    part-fail-freq-days: [7, 31]
+    part-fail-freq-days: [7, 14]
 
 operators:
   - id: operator1
@@ -233,6 +231,9 @@ collectors:
       - id: productcontainer1.batches_failed_quantity
         name: Product.FailedQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+      - id: productcontainer1.batches_last_batch_quality
+        name: Product.Quality
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
       - id: consumablecontainer1.consumablecontainer1_post_level
         name: ConsumableContainer.Quantity
         value-map: "lambda x: round(x, 2) if x is not None else 0"

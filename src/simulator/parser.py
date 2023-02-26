@@ -91,10 +91,10 @@ def make_programs(env, cfg_list, boms):
     cfg_list = deepcopy(cfg_list)
     out = {}
     for cfg in cfg_list:
+        cfg = normalize_keys(cfg)
         id_ = cfg.pop("id")
         bom_ = boms[cfg.pop("bom")]
-        if "temperature-factor" in cfg:
-            cfg["temp_factor"] = cfg.pop("temperature-factor")
+        assert "temp_factor" in cfg
 
         out[id_] = Program(id_, env, bom=bom_, **cfg)
 

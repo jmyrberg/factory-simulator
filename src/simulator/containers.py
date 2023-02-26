@@ -257,10 +257,10 @@ class MaterialContainer(Base):
                 fetch_batches.append(batch)
                 self.batches.pop()
 
-            if fetch_quantity == quantity:
+            if np.isclose(fetch_quantity, quantity):
                 break
 
-            if fetch_quantity > quantity:
+            elif fetch_quantity > quantity:
                 raise ValueError("Should not happen")
 
         self.debug(
