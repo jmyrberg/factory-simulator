@@ -590,8 +590,6 @@ class Machine(Base):
               AutomaticStopProduction etc.
         """
         yield self.wjitter()
-        # TODO: Failure probability etc.
-        # TODO: Look at what was originally asked for and implement
         # TODO: Cleanup the triggers + prio handling with try etc.
         if self.program is None:
             self.warning("Production cannot be started with no program set")
