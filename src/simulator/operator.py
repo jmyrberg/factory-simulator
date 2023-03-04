@@ -261,8 +261,8 @@ class Operator(Base):
         self.state = "home"
         next_arrival = self._get_time_until_next_work_arrival()
         yield self.wnorm(
-            low=next_arrival - self.minutes(10),
-            high=next_arrival + self.minutes(5),
+            low=next_arrival,
+            high=next_arrival + self.minutes(15),
         )
         self.had_lunch = False
         self.env.process(self._work())
