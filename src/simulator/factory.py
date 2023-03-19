@@ -86,6 +86,21 @@ class Factory(Base):
         statedict[f"{self.uid}.datetime"] = self.now_dt.datetime
         return statedict
 
+    def get_state(self, collector=None):
+        state = self.state
+        if collector is None:
+            return state
+
+        fieldnames = list(self.collector["variables"])
+
+        statedict = {}
+        for field in fieldnames:
+            key = self.collector["variables"][field]["name"]
+            value_map = self.collector["variables"][field]["value_map"]
+            statedict[key] = value_map(state.get(field))
+
+        return statedict
+
     def add_sensor(self, sensor):
         if sensor.uid not in self.sensors:
             self.sensors[sensor.uid] = sensor

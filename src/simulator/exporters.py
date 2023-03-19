@@ -50,36 +50,17 @@ class CSVExporter(Exporter):
         # TODO: Get next full minute
         yield self.env.timeout(10 * self.interval_secs)
         while True:
-            state = self.env.factory.state
+            state = self.env.factory.get_state(collector=self.collector)
 
-            if self.writer is None:
-                if self.collector is None:
-                    self.fieldnames = list(state.keys())
-                    header = self.fieldnames
-                else:
-                    self.fieldnames = list(self.collector["variables"])
-                    header = [
-                        self.collector["variables"][field]["name"]
-                        for field in self.fieldnames
-                    ]
-
+            if self.fieldnames is None:
+                self.fieldnames = list(state.keys())
                 self.info(f"Fieldnames: {self.fieldnames!r}")
-                self.writer = csv.DictWriter(self.file, fieldnames=header)
+
+                self.writer = csv.DictWriter(self.file, fieldnames=self.fieldnames)
                 self.writer.writeheader()
 
             # Data
-            row = {}
-            for field in self.fieldnames:
-                if self.collector is not None:
-                    key = self.collector["variables"][field]["name"]
-                    value_map = self.collector["variables"][field]["value_map"]
-                else:
-                    key = field
-                    value_map = lambda x: x  # noqa: E731
-
-                row[key] = value_map(state.get(field))
-
-            self.writer.writerow(row)
+            self.writer.writerow(state)
             yield self.env.timeout(self.interval_secs)
 
     def __exit__(self, exc_type, exc_value, traceback):

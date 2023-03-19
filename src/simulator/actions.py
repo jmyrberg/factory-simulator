@@ -1,4 +1,4 @@
-"""Schedules."""
+"""Functions that can be scheduled and access Factory object."""
 
 
 from functools import partial
@@ -14,7 +14,14 @@ from src.simulator.material import Material, MaterialBatch
 
 
 def get_action(name, *args, **kwargs):
-    """Action called upon block start."""
+    """Action called upon schedule block start.
+
+    Args:
+        name: Name of the function to be run, see dictionary `funcs` below.
+        *args: Arguments passed into action function.
+        **kwargs: Keyword arguments passed into action function. Keyword
+            argument "schedule" is reserved.
+    """
     if "schedule" in kwargs:
         raise ValueError('Reserved kwarg "schedule" given in "kwargs"')
 
@@ -47,7 +54,23 @@ def _action_procurement(
     fail_proba=0,
     batch_size=25,
 ):
-    # TODO: Fail probability
+    """Action to procure raw materials/consumables and fill containers with.
+
+    Args:
+        block: Block that runs this action.
+        content_uid: Content that will be filled.
+        quantity: Quantity to be filled.
+        quality (optional): Normal distribution to sample quality from
+            normal(mu, std). Defaults to (1, 0.001).
+        consumption_factor (optional): How many units are actually needed to
+            consume 1 unit of content. E.g. you'd need 1.15 liters to get 1
+            liter of standardized quality, if the quality is bad. Sampled from
+            normal(mu, std). Defaults to (1, 0.001).
+        fail_proba (optional): Probability of procurement failing. Defaults to
+            0.
+        batch_size (optional): Quantity is filled into containers with batches
+            of given size. Defaults to 25.
+    """
     run = block.choice([False, True], p=[fail_proba, 1 - fail_proba])
     if not run:
         block.warning("Procurement will not be done due to chance")
@@ -90,6 +113,13 @@ def _action_procurement(
 
 
 def _action_switch_program(block, program_id):
+    """Action to switch machine program.
+
+    Args:
+        block: block: Block that runs this action.
+        program_id: Unique ID of the machine program to switch into. Machine
+            is taken from the schedule of the block.
+    """
     # TODO: Simplify block/schedule events
     block.emit("action_started")
     machine = block.schedule.machine
@@ -119,6 +149,11 @@ def _action_switch_program(block, program_id):
 
 
 def _action_maintenance(block):
+    """Action to trigger maintenance.
+
+    Args:
+        block: Block that runs this action.
+    """
     # TODO: Simplify block/schedule events
     block.emit("action_started")
     machine = block.schedule.machine
