@@ -13,4 +13,4 @@ COPY config ./config
 # Server port
 EXPOSE 4840
 
-CMD ["python3", "-m", "src.app.server"]
+CMD ["python3", "-m", "src.server.main"]

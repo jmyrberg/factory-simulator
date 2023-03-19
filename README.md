@@ -11,11 +11,15 @@ Code for simulating a factory floor.
     Machine---Schedule
     Schedule-- Switches -->Program
     Machine---Container
+    Sensors(Sensors in machine, factory, etc.)
+    FailureProcess(Failure process)-->Machine
+    Filling(Filling process)-->Container
     Program---BOM
     Production-- Runs -->Program
     Material-- Input -->BOM
     Consumable-- Input -->BOM
     BOM-- Output -->Product
+    Product-->ProductContainer(Product container)
     Work-- Operates -->Machine
     subgraph MachineStates
       Machine---Off

@@ -8,10 +8,9 @@ results/*
 *.csv
 *.xlsx
 *.env*
-!*.env.example
+!.example.env
 .DS_Store
 docs/source/_build/*
-proxies.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

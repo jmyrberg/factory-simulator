@@ -18,7 +18,7 @@ class Sensor(Base):
     value = AttributeMonitor("numerical")
 
     def __init__(
-        self, env, interval=60, init_value=None, name="sensor", uid=None
+        self, env, interval=5, init_value=None, name="sensor", uid=None
     ):
         super().__init__(env, name=name, uid=uid)
         self.interval = interval

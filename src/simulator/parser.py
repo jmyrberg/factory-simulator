@@ -228,16 +228,17 @@ def make_collectors(env, cfg_list):
 
         out_variables = {}
         for var_cfg in cfg["variables"]:
-            var_id = var_cfg["id"]
-            var_name = var_cfg["name"] or var_cfg["id"]
+            var_id = var_cfg.pop("id")
+            var_name = var_cfg.pop("name", None) or var_id
 
-            func_str = var_cfg["value-map"] or "lambda x: x"
+            func_str = var_cfg.pop("value-map", "lambda x: x")
             code_obj = compile(func_str, "<string>", "exec")
             var_value_map = FunctionType(code_obj.co_consts[0], globals())
 
             out_variables[var_id] = {
                 "name": var_name,
                 "value_map": var_value_map,
+                **var_cfg,
             }
 
         out[id_] = {"name": name, "variables": out_variables}
@@ -251,6 +252,7 @@ def make_exporters(env, cfg_list, collectors):
     for cfg in cfg_list:
         id_ = cfg.pop("id")
         exporter_type = cfg.pop("type")
+        collector = cfg.get("collector")
         cls = get_exporter_by_type(exporter_type)
 
         kwargs = {"filepath": cfg["filepath"]}
@@ -258,8 +260,8 @@ def make_exporters(env, cfg_list, collectors):
             kwargs["names"] = cfg["names"]
         if "interval-secs" in cfg:
             kwargs["interval_secs"] = cfg["interval-secs"]
-        if "collector" in collectors:
-            kwargs["collector"] = collectors["collector"]
+        if collector is not None:
+            kwargs["collector"] = collectors[collector]
 
         out[id_] = cls(env, uid=id_, **kwargs)
 
@@ -288,8 +290,8 @@ def parse_config(env, path: str):
         env, cfg["machines"], containers, programs, schedules, maintenance
     )
     operators = make_operators(env, cfg["operators"], machines)
-    collectors = make_collectors(env, cfg.get("collectors", []))
-    exporters = make_exporters(env, cfg.get("exporters", []), collectors)
+    collectors = make_collectors(env, cfg.get("collectors") or [])
+    exporters = make_exporters(env, cfg.get("exporters") or [], collectors)
 
     # TODO: Needed?
     # sensors = make_sensors(env, cfg["sensors"])
@@ -308,6 +310,7 @@ def parse_config(env, path: str):
         "machines": machines,
         "operators": operators,
         "sensors": sensors,
+        "collectors": collectors,
         "exporters": exporters,
     }
 

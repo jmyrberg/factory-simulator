@@ -13,7 +13,7 @@ SERVER_ENDPOINT = os.environ["SERVER_ENDPOINT"]
 SERVER_NAMESPACE = os.environ["SERVER_NAMESPACE"]
 SERVER_PASSWORD = os.environ["SERVER_PASSWORD"]
 SERVER_USERNAME = os.environ["SERVER_USERNAME"]
-POLL_INTERVAL_SECS = 5
+CLIENT_READ_INTERVAL_SECS = int(os.getenv("CLIENT_READ_INTERVAL_SECS", 5))
 
 
 async def main():
@@ -35,7 +35,7 @@ async def main():
             ["0:Objects", f"{nsidx}:Factory"]
         )
         while True:
-            await asyncio.sleep(POLL_INTERVAL_SECS)
+            await asyncio.sleep(CLIENT_READ_INTERVAL_SECS)
             all_vals = {}
             for var in await obj.get_variables():
                 value = await var.read_value()

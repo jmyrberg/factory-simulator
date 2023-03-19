@@ -177,13 +177,15 @@ operators:
     machine: machine1
 
 collectors:
-  - id: collector
+  - id: default
     name: Variable collector
     variables:
       - id: factory.datetime
         name: Factory.Datetime
         value-map: >
-          lambda x: x.strftime("%Y-%m-%d %H:%M:00")
+          lambda x: x.strftime("%Y-%m-%d %H:%M:%S")
+        dtype: String
+        default: "null"
       - id: machine1.state
         name: Machine.State
         value-map: >
@@ -193,12 +195,18 @@ collectors:
             "production": 2,
             "error": 3
           }.get(x, 0)
+        dtype: Int64
+        default: 0
       - id: machine1.production_interrupt_code
         name: Machine.ProductionInterruptCode
         value-map: "lambda x: x if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: machine1.error_code
         name: Machine.ErrorCode
         value-map: "lambda x: x if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: machine1.program
         name: Machine.Program
         value-map: >
@@ -207,43 +215,68 @@ collectors:
             "program2": 2,
             "program3": 3,
           }.get(x.uid if x is not None else None, 0)
+        dtype: Int64
+        default: 0
       - id: machine1-temperature-sensor.temperature
         name: Machine.Temperature
         value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
       - id: machine1.is_planned_operating_time
         name: Machine.IsPlannedOperatingTime
         value-map: "lambda x: int(x) if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: machine1.consumption_consumable1
         name: Machine.Consumable.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
       - id: machine1.consumption_material1
         name: Machine.Material.Consumption
-        value-map: "lambda x: round(x, 2) if x is not None else 0"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
       - id: machine1.material_id_material1
         name: Machine.Material.MaterialId
         value-map: "lambda x: x if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: machine1.latest_batch_id_material1
         name: Machine.Material.MaterialIdString
         value-map: "lambda x: x if x is not None else 'null'"
+        dtype: String
+        default: "null"
       - id: productcontainer1.batches_success_quantity
         name: Product.SuccessQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: productcontainer1.batches_failed_quantity
         name: Product.FailedQuantity
         value-map: "lambda x: int(round(x, 0)) if x is not None else 0"
+        dtype: Int64
+        default: 0
       - id: productcontainer1.batches_last_batch_quality
         name: Product.Quality
         value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
       - id: consumablecontainer1.consumablecontainer1_post_level
         name: ConsumableContainer.Quantity
-        value-map: "lambda x: round(x, 2) if x is not None else 0"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
       - id: materialcontainer1.batches_quantity
         name: MaterialContainer.Quantity
-        value-map: "lambda x: round(x, 2) if x is not None else 0"
+        value-map: "lambda x: round(x, 2) if x is not None else 0.00"
+        dtype: Double
+        default: 0.00
 
 exporters:
-  - id: csv-exporter
-    type: csv
-    filepath: results/run.csv
-    interval-secs: 60
-    collector: collector
+  # Not needed in server mode
+  # - id: csv-exporter
+  #   type: csv
+  #   filepath: results/run.csv
+  #   interval-secs: 60
+  #   collector: default

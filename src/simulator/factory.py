@@ -40,6 +40,7 @@ class Factory(Base):
         machines: Dict[str, Machine] | None = None,
         operators: Dict[str, Operator] | None = None,
         sensors: Dict[str, Sensor] | None = None,
+        collectors: Dict[str, dict] | None = None,
         exporters: Dict[str, Exporter] | None = None,
         randomize: bool = True,
         monitor: int = 100,
@@ -61,6 +62,7 @@ class Factory(Base):
         self.machines = machines
         self.operators = operators
         self.sensors = sensors or {}
+        self.collectors = collectors or {}
         self.exporters = exporters or {}
 
         # Internal
@@ -83,21 +85,31 @@ class Factory(Base):
             f"{uid}.{key}": v
             for (dtype, uid, key), (ds, v) in self.data_last.items()
         }
-        statedict[f"{self.uid}.datetime"] = self.now_dt.datetime
+
+        # Factory time
+        if isinstance(self.env, simpy.RealtimeEnvironment):
+            now_dt = self.now_dt_real.datetime
+        else:
+            now_dt = self.now_dt.datetime
+        statedict[f"{self.uid}.datetime"] = now_dt
+
         return statedict
 
     def get_state(self, collector=None):
         state = self.state
-        if collector is None:
+        if collector is None:  # Same keys not guaranteed
             return state
 
-        fieldnames = list(self.collector["variables"])
+        fieldnames = list(collector["variables"].keys())
 
+        # Map names and apply value map
         statedict = {}
         for field in fieldnames:
-            key = self.collector["variables"][field]["name"]
-            value_map = self.collector["variables"][field]["value_map"]
-            statedict[key] = value_map(state.get(field))
+            key = collector["variables"][field]["name"]
+            value_map = collector["variables"][field]["value_map"]
+            default_value = collector["variables"][field].get("default")
+
+            statedict[key] = value_map(state.get(field)) or default_value
 
         return statedict
 

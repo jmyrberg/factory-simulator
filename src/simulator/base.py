@@ -212,6 +212,11 @@ class Base:
         return arrow.get(self.env.now).to(self.tz)
 
     @property
+    def now_dt_real(self) -> arrow:
+        """Real datetime."""
+        return arrow.now().to(self.tz)
+
+    @property
     def dtfmt(self) -> str:
         """Recommended dateformat."""
         return "%Y-%m-%d %H:%M:%S"
