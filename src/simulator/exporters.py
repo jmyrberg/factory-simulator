@@ -3,11 +3,14 @@
 
 import csv
 
+import simpy
+
 from src.simulator.base import Base
 from src.simulator.utils import wait_factory
 
 
-def get_exporter_by_type(exporter):
+def get_exporter_by_type(exporter: str):
+    """Get exporter based on given type."""
     exporter = exporter.strip().lower()
     if exporter == "csv":
         return CSVExporter
@@ -23,13 +26,25 @@ class Exporter(Base):
 class CSVExporter(Exporter):
     def __init__(
         self,
-        env,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
         filepath: str,
-        collector=None,
-        interval_secs=60,
-        name="csv-exporter",
-        uid=None,
+        collector: dict | None = None,
+        interval_secs: int = 60,
+        name: str = "csv-exporter",
+        uid: str | None = None,
     ):
+        """Export simulation data as CSV file.
+
+        Args:
+            filepath: Filepath to save CSV into.
+            collector (optional): Parsed collector dictionary.
+                If None, all data will be collected. Defaults to None.
+            interval_secs (optional): Data snapshot interval in seconds.
+                Defaults to 60.
+            name (optional): Name of the CSV exporter. Defaults to
+                "csv-exporter".
+            uid (optional): Unique ID of the object. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.filepath = filepath
         self.collector = collector

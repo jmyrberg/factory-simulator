@@ -1,8 +1,8 @@
-"""Factory."""
+"""Factory is the main interface towards the end-user."""
 
 
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, TypeVar
 
 import arrow
 import simpy
@@ -22,6 +22,8 @@ from src.simulator.product import Product
 from src.simulator.program import Program
 from src.simulator.schedules import OperatingSchedule
 from src.simulator.sensors import RoomTemperatureSensor, Sensor
+
+FactoryType = TypeVar("FactoryType", bound="Factory")
 
 
 class Factory(Base):
@@ -47,7 +49,143 @@ class Factory(Base):
         name: str = "factory",
         uid: str | None = None,
     ) -> None:
-        """Factory."""
+        """Factory object.
+
+        Args:
+            env: Simpy environment object.
+            materials (optional): Materials used within the factory. Should be
+                a dictionary that maps UID -> Material, e.g.
+                {
+                    "material1": Material
+                }
+                Defaults to None.
+            consumables (optional): Consumables used within the factory. Should
+                be a dictionary that maps UID -> Consumable, e.g.
+                {
+                    "consumable1": Consumable
+                }
+                Defaults to None.
+            products (optional): Products produced by the factory. Should
+                be a dictionary that maps UID -> Product, e.g.
+                {
+                    "product1": Product
+                }
+                Defaults to None.
+            containers (optional): Containers within the factory. Should
+                be a dictionary that maps UID ->
+                {Material,Consumable,Product}Container, e.g.
+                {
+                    "materialcontainer1": MaterialContainer,
+                    "consumablecontainer1": ConsumableContainer,
+                    "productcontainer1": ProductContainer
+                }
+                Defaults to None.
+            boms (optional): Bill of materials used by the factory machines.
+                Should be a dictionary that maps UID -> BOM, e.g.
+                {
+                    "bom1": BOM
+                }
+                Defaults to None.
+            maintenance (optional): Maintenance team used by the factory.
+                Should be a dictionary that maps UID -> Maintenance, e.g.
+                {
+                    "maintenance1": Maintenance
+                }
+                Defaults to None.
+            programs (optional): Machine programs used by the factory. Should
+                be a dictionary that maps UID -> Program, e.g.
+                {
+                    "program1": Program
+                }
+                Defaults to None.
+            schedules (optional): Schedules used by the factory. Should be a
+                dictionary that maps UID -> {Operating,Procurement}Schedule,
+                e.g.
+                {
+                    "operating-schedule1": OperatingSchedule,
+                    "procurement-schedule1": ProcurementSchedule
+                }
+                Defaults to None.
+            machines (optional): Machines in the factory. Should be a
+                dictionary that maps UID -> Machine,
+                e.g.
+                {
+                    "machine1": Machine
+                }
+                Defaults to None.
+            operators (optional): Operators in the factory. Should be a
+                dictionary that maps UID -> Operator,
+                e.g.
+                {
+                    "operator1": Operator
+                }
+                Defaults to None.
+            sensors (optional): Sensors in the factory. Note that some of the
+                sensors are hardcoded and cannot be provided here,
+                e.g. temperature of a machine (MachineTemperatureSensor) and
+                factory room temperature (RoomTemperatureSensor).
+
+                Should be a dictionary that maps UID -> Sensor, e.g.
+                {
+                    "sensor1": Sensor
+                }
+                Defaults to None.
+            collectors (optional): Data collectors in the factory. Should be a
+                dictionary that maps UID -> dict,
+                e.g.
+                {
+                    "default-collector": {
+                        "name": "Variable collector",
+                        "variables": [
+                            {
+                                "id": factory.datetime,
+                                "name": Factory.Datetime,
+                                "value_map":
+                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S"),
+                                "dtype": "String",
+                                "default": "null"
+                            },
+                            {
+                                "id": machine1.state,
+                                "name": Machine.State,
+                                "value_map":
+                                    lambda x: {
+                                        "off": 0,
+                                        "on": 1,
+                                        "production": 2,
+                                        "error": 3
+                                    }.get(x, 0)
+                                "dtype": "Int64",
+                                "default": 0
+                            }
+                        ]
+                    }
+                }
+                Defaults to None.
+            exporters (optional): Data exporters in the factory. Should be a
+                dictionary that maps UID -> Exporter, e.g.
+                {
+                    "csv-exporter": CSVExporter
+                }
+                Defaults to None.
+            randomize (optional): Whether to allow randomization of durations,
+                failure, etc. or not. Defaults to True.
+            monitor (optional): Number of most recent data points to save
+                within the Base -object. The higher the number, the more RAM
+                it will consume. Set -1 for infinity. Defaults to 100.
+            name (optional): Name of the factory. Defaults to "factory"
+            uid (optional): Unique ID for the Factory -object. Defaults to
+                None.
+
+        Example:
+
+            # Typical workflow
+            factory = Factory.from_config("config/factory.yml")
+            factory.run(days=7)
+            factory.plot()
+
+        Note: Usage through `from_config` -method is recommended!
+        """
         super().__init__(env, uid=uid, name=name)
 
         # Inputs
@@ -68,6 +206,7 @@ class Factory(Base):
         # Internal
         self._state = {}
         self.add_sensor(
+            # TODO: Define elsewhere
             RoomTemperatureSensor(
                 env, self, uid=f"{self.uid}-room-temperature-sensor"
             )
@@ -81,6 +220,7 @@ class Factory(Base):
 
     @property
     def state(self):
+        """Return state of all variables."""
         statedict = {
             f"{uid}.{key}": v
             for (dtype, uid, key), (ds, v) in self.data_last.items()
@@ -95,9 +235,10 @@ class Factory(Base):
 
         return statedict
 
-    def get_state(self, collector=None):
+    def get_state(self, collector: dict | None = None):
+        """Return state of all variables as defined by the collector."""
         state = self.state
-        if collector is None:  # Same keys not guaranteed
+        if collector is None:  # Same keys on every call not guaranteed
             return state
 
         fieldnames = list(collector["variables"].keys())
@@ -113,14 +254,16 @@ class Factory(Base):
 
         return statedict
 
-    def add_sensor(self, sensor):
+    def add_sensor(self, sensor: Sensor):
+        """Add sensor into Factory."""
         if sensor.uid not in self.sensors:
             self.sensors[sensor.uid] = sensor
             self.info(f'Added sensor "{sensor.uid}"')
         else:
             self.warning(f"Tried to add existing sensor {sensor.uid}")
 
-    def find_uid(self, uid):
+    def find_uid(self, uid: str):
+        """Find object based on its unique id (uid)."""
         for attr in [
             "materials",
             "consumables",
@@ -140,13 +283,24 @@ class Factory(Base):
         raise KeyError(f'UID "{uid}" not found')
 
     @staticmethod
-    def init_env(env):
+    def init_env(env: simpy.Environment | simpy.RealtimeEnvironment):
+        """Initialize environment object."""
         env.factory_init_event = env.event()
         env.data = defaultdict(lambda: [])
         return env
 
     @classmethod
-    def from_config(cls, path: str, real: bool = False):
+    def from_config(cls, path: str, real: bool = False) -> FactoryType:
+        """Create Factory object from configuration file (yaml).
+
+        Args:
+            path: Filepath into factory configuration YAML-file.
+            real: Whether to run simulation in real-time or not. Defaults to
+                False.
+
+        Returns:
+            Factory object based on given configuration file.
+        """
         start = arrow.now("Europe/Helsinki").timestamp()
         if real:
             env = simpy.RealtimeEnvironment(start)
@@ -158,11 +312,18 @@ class Factory(Base):
         cfg = parse_config(env, path)
         return cls(env, **cfg)
 
-    def run(self, days=None):
+    def run(self, days: int | None = None):
+        """Run Factory for given number of days or infinitely.
+
+        Args:
+            days (optional): Number of days to run Factory for. If None, then
+                run infinitely. Defaults to None.
+        """
         until = None if days is None else self.env.now + self.days(days)
         self.env.run(until)
 
     def plot(self):
+        """Plot results for categorical and numerical data of a Factory."""
         end_dt = self.now_dt.datetime
         plot_timeline(
             df=self.data_df.query("dtype == 'categorical'"),

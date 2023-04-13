@@ -1,4 +1,4 @@
-"""Different kinds of issues."""
+"""Different kinds of issues and errors."""
 
 
 class BaseIssue(BaseException):

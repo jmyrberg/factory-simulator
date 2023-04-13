@@ -12,6 +12,7 @@ from src.simulator.issues import (
     PartBrokenIssue,
     UnknownIssue,
 )
+from src.simulator.machine import Machine
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
 
@@ -21,8 +22,19 @@ class Operator(Base):
     issue_ongoing = AttributeMonitor()
     had_lunch = AttributeMonitor()
 
-    def __init__(self, env, machine=None, name="operator", uid=None):
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        machine: Machine | None = None,
+        name: str = "operator",
+        uid: str | None = None,
+    ):
         """Models an operator at the factory.
+
+        Args:
+            env: Simpy environment.
+            name (optional): Name of the material. Defaults to "material".
+            uid (optional): Unique ID for the material. Defaults to None.
 
         Basic cycle:
             1) Go to work in the morning, if it's not weekend
@@ -30,6 +42,8 @@ class Operator(Base):
             3) Go to lunch
             4) Operate/monitor the machine
             5) Go home
+
+        TODO: Operator adds quite much complexity with little value - remove!
         """
         super().__init__(env, name=name, uid=uid)
         self.machine = machine

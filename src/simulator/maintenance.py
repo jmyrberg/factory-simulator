@@ -12,7 +12,22 @@ from src.simulator.issues import (
 
 
 class Maintenance(Base):
-    def __init__(self, env, workers=2, name="maintenance", uid=None):
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        workers: int = 2,
+        name: str = "maintenance",
+        uid: str | None = None,
+    ):
+        """Maintenance service.
+
+        Args:
+            env: Simpy environment.
+            workers (optional): Number of workers in the worker team. Defaults
+                to 2.
+            name (optional): Name of the machine. Defaults to "machine".
+            uid (optional): Unique ID of the object. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.issues = self.with_monitor(
             simpy.PriorityStore(env), name="issues"
@@ -32,6 +47,7 @@ class Maintenance(Base):
         }
 
     def add_issue(self, issue, priority=None):
+        """Add issue to maintenance team backlog."""
         if priority is None and hasattr(issue, "priority"):
             priority = issue.priority
         else:
@@ -48,6 +64,7 @@ class Maintenance(Base):
             self.emit("added_issue")
 
     def _fix_issue(self, issue):
+        """Internal process to fix an issue."""
         if isinstance(issue, ScheduledMaintenanceIssue):
             duration = issue.duration
             machine = issue.machine
@@ -84,6 +101,7 @@ class Maintenance(Base):
         # machine.log_maintenance(start_time)
 
     def repair(self):
+        """Repair process."""
         while True:
             issue = yield self.issues.get()
             item = issue.item
@@ -94,6 +112,7 @@ class Maintenance(Base):
                 self.emit("fixed_issue")
 
     def issue_producer(self):
+        """Process that produces random issues for the team."""
         while True:
             next_issue_in = 60 * 60 * self.iuni(12, 48)
             priority = self.iuni(3, 5, weights=[0.8, 0.1, 0.1])

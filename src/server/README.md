@@ -1,6 +1,6 @@
 # Factory Simulator - OPC UA Server and Client
 
-Provide simulator data as an OPC UA server.
+Simulate factory as an OPC UA server by running the simulation in it's own thread and querying the factory state at given intervals.
 
 ## Instructions
 
@@ -10,7 +10,7 @@ Build
 docker build . -t factory-simulator -f src/server/Dockerfile
 ```
 
-Run server (see [.example.env](../../.example.env))
+Run server (copy `.env` from [.example.env](../../.example.env))
 
 ```shell
 docker run -p 4840:4840 --env-file .env -v $(pwd):/opt/app factory-simulator
@@ -34,4 +34,4 @@ graph LR;
     server -- Serve values --> client(Client)
 ```
 
-The data collector is defined in [factory.yml](../../config/factory.yml).
+The data collector variables are defined in [factory.yml](../../config/factory.yml).

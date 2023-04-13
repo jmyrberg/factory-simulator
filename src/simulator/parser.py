@@ -4,6 +4,7 @@
 from copy import deepcopy
 from types import FunctionType
 
+import simpy
 import yaml
 
 from src.simulator.actions import get_action
@@ -268,8 +269,21 @@ def make_exporters(env, cfg_list, collectors):
     return out
 
 
-def parse_config(env, path: str):
-    """Parse factory configuration file."""
+def parse_config(
+    env: simpy.Environment | simpy.RealtimeEnvironment, path: str
+):
+    """Parse factory configuration file.
+
+    The basic idea of this function:
+        * Parse YAML file
+        * Create all independent objects into mapping from id -> Object
+        * Create all dependent objects using the mapping
+        * Input the previous into Factory -object
+
+    Args:
+        env: Simpy environment.
+        path: Filepath of the configuration YAML-file.
+    """
     # TODO: Check UIDs are actually unique
     # Read YAML
     with open(path, "r") as f:
@@ -294,8 +308,7 @@ def parse_config(env, path: str):
     exporters = make_exporters(env, cfg.get("exporters") or [], collectors)
 
     # TODO: Needed?
-    # sensors = make_sensors(env, cfg["sensors"])
-    sensors = {}
+    sensors = make_sensors(env, cfg.get("sensors") or [])
 
     # Output only when dictionary is not empty
     out = {

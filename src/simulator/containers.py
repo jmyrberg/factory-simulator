@@ -8,8 +8,9 @@ import numpy as np
 import simpy
 
 from src.simulator.base import Base
-from src.simulator.material import MaterialBatch
-from src.simulator.product import ProductBatch
+from src.simulator.consumable import Consumable
+from src.simulator.material import Material, MaterialBatch
+from src.simulator.product import Product, ProductBatch
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,31 @@ logger = logging.getLogger(__name__)
 class ConsumableContainer(Base):
     def __init__(
         self,
-        env,
-        consumable,
-        capacity=100.0,
-        init=None,
-        fill_rate=50,
-        resolution=60,
-        name="consumable-container",
-        uid=None,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        consumable: Consumable,
+        capacity: float = 100.0,
+        init: float | None = None,
+        fill_rate: float = 50.0,
+        resolution: int = 60,
+        name: str = "consumable-container",
+        uid: str | None = None,
     ):
-        """Container with continuous contents."""
+        """Container with continuous contents.
+
+        Args:
+            env: Simpy environment.
+            consumable (optional): Consumable stored in the container.
+            capacity (optional): Capacity of the container. Defaults to 100.0.
+            init (optional): Initial level of the container. Defaults to None.
+            fill_rate (optional): Quantity per hour that the container can be
+                filled with. Defaults to 50.
+            resolution (optional): Sampling rate in seconds to update the
+                container level, i.e. how fast level change can be seen when
+                filling the container. Defaults to 60.
+            name (optional): Name of the consumable. Defaults to
+                "consumable-container".
+            uid (optional): Unique ID for the consumable. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.consumable = consumable
         self.init = init
@@ -103,16 +119,31 @@ class ConsumableContainer(Base):
 class MaterialContainer(Base):
     def __init__(
         self,
-        env,
-        material,
-        capacity=100.0,
-        fill_rate=50,
-        resolution=60,
-        init=None,
-        name="material-container",
-        uid=None,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        material: Material,
+        capacity: float = 100.0,
+        fill_rate: float = 50.0,
+        resolution: int = 60,
+        init: float | None = None,
+        name: str = "material-container",
+        uid: str | None = None,
     ):
-        """Container with discrete contents."""
+        """Container with discrete contents.
+
+        Args:
+            env: Simpy environment.
+            consumable (optional): Consumable stored in the container.
+            capacity (optional): Capacity of the container. Defaults to 100.0.
+            init (optional): Initial level of the container. Defaults to None.
+            fill_rate (optional): Quantity per hour that the container can be
+                filled with. Defaults to 50.
+            resolution (optional): Sampling rate in seconds to update the
+                container level, i.e. how fast level change can be seen when
+                filling the container. Defaults to 60.
+            name (optional): Name of the consumable. Defaults to
+                "material-container".
+            uid (optional): Unique ID for the consumable. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.material = material
         self.capacity = capacity
@@ -271,8 +302,22 @@ class MaterialContainer(Base):
 
 
 class ProductContainer(Base):
-    def __init__(self, env, product, name="product-container", uid=None):
-        """Container with discrete contents."""
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        product: Product,
+        name: str = "product-container",
+        uid: str | None = None,
+    ):
+        """Container with production output contents.
+
+        Args:
+            env: Simpy environment.
+            product (optional): Product stored in the container.
+            name (optional): Name of the consumable. Defaults to
+                "product-container".
+            uid (optional): Unique ID for the consumable. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.product = product
         self.batches = self.with_monitor(
@@ -411,6 +456,7 @@ def get_from_containers(quantity, containers, strategy="first"):
 
 
 def put_into_material_containers(batches, containers, strategy="first"):
+    """Put material into containers based on given startegy."""
     batches_put = []
     total_put = 0
     total_to_put = sum(batch.quantity for batch in batches)
@@ -439,6 +485,7 @@ def put_into_material_containers(batches, containers, strategy="first"):
 
 
 def put_into_consumable_containers(quantity, containers, strategy="first"):
+    """Put consumables into containers based on given strategy."""
     total_put = 0
     total_to_put = quantity
     if strategy == "first":
@@ -462,6 +509,7 @@ def put_into_consumable_containers(quantity, containers, strategy="first"):
 
 
 def find_containers_by_type(content, containers, raising=True):
+    """Search for containers based on given content."""
     filtered_containers = []
     for container in containers:
         if (
@@ -484,3 +532,6 @@ def find_containers_by_type(content, containers, raising=True):
         raise ValueError(f'No containers found for "{content}"')
 
     return filtered_containers
+
+
+ContainerType = ConsumableContainer | MaterialContainer | ProductContainer

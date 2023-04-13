@@ -2,6 +2,7 @@
 
 
 from datetime import datetime, timedelta
+from typing import List
 
 import simpy
 from croniter import croniter
@@ -16,10 +17,11 @@ class Block(Base):
     action = AttributeMonitor()
 
     def __init__(self, env, action=None, priority=0, name="block", uid=None):
-        """
+        """Block defines an action to be run in a schedule.
 
-        action (tuple): Tuple of (action_func, args, kwargs). Assigned machine
-            will be automatically passed within kwargs.
+        Args:
+            action (tuple): Tuple of (action_func, args, kwargs). Assigned
+            machine will be automatically passed within kwargs.
         """
         super().__init__(env, name=name, uid=uid)
         self.action = action
@@ -113,6 +115,7 @@ class CronBlock(Block):
         name="cron-block",
         uid=None,
     ):
+        """Block that starts on cron definition and lasts for duration."""
         super().__init__(
             env, action=action, priority=priority, name=name, uid=uid
         )
@@ -151,11 +154,25 @@ class CronBlock(Block):
 
 
 class Schedule(Base):
-    """Run actions when scheduled."""
 
     active_block = AttributeMonitor()
 
-    def __init__(self, env, blocks=None, name="schedule", uid=None):
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        blocks: List[Block] = None,
+        name: str = "schedule",
+        uid: str | None = None,
+    ):
+        """Run actions when scheduled.
+
+        Args:
+            env: Simpy environment.
+            blocks (optional): Blocks belonging to the schedule. Defaults to
+                None.
+            name (optional): Name of the schedule. Defaults to "schedule".
+            uid (optional): Unique ID for the schedule. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.blocks = blocks
         for block in self.blocks:
@@ -230,9 +247,24 @@ class Schedule(Base):
 
 
 class OperatingSchedule(Schedule):
-    """Controls the "program" -attribute of a machine."""
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        blocks: List[Block] = None,
+        name: str = "operating-schedule",
+        uid: str | None = None,
+    ):
+        """Controls the "program" -attribute of a machine.
 
-    def __init__(self, env, blocks=None, name="operating-schedule", uid=None):
+        Args:
+            env: Simpy environment.
+            blocks (optional): Blocks belonging to the schedule. Defaults to
+                None.
+            name (optional): Name of the operating schedule. Defaults to
+                "operating-schedule".
+            uid (optional): Unique ID for the operating schedule. Defaults to
+                None.
+        """
         super().__init__(env, blocks=blocks, name=name, uid=uid)
 
         self.machine = None

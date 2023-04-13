@@ -1,4 +1,4 @@
-"""Machine programs."""
+"""Production programs."""
 
 
 import uuid
@@ -7,6 +7,7 @@ from collections import defaultdict
 import simpy
 
 from src.simulator.base import Base
+from src.simulator.bom import BOM
 from src.simulator.causes import BaseCause, UnknownCause
 from src.simulator.containers import (
     find_containers_by_type,
@@ -23,20 +24,29 @@ from src.simulator.utils import AttributeMonitor
 
 
 class Program(Base):
-    # TODO: Create a couple of different kinds of programs (Batch/Maintenance)
 
     state = AttributeMonitor()
 
     def __init__(
         self,
         uid: str,
-        env,
-        bom,
-        duration_minutes=15,
-        temp_factor=1.0,
-        name="program",
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        bom: BOM,
+        duration_minutes: int = 15,
+        temp_factor: float = 1.0,
+        name: int = "program",
     ) -> None:
-        """Machine program."""
+        """Program that consumes inputs and produces outputs on a machine.
+
+        Args:
+            uid: Unique identifier of program.
+            env: Simpy environment.
+            bom: Bill of material.
+            duration_minutes (optional): Duration of one cycle of the program.
+            temp_factor (optional): Temperature multiplier of the program.
+                Affects the machine temperature. Defaults to 1.0.
+            name (optional): Name of the program. Defaults to "program".
+        """
         super().__init__(env, name=name, uid=uid)
         self.uid = uid
         self.bom = bom
@@ -219,6 +229,7 @@ class Program(Base):
             del self.locked_containers[obj]
 
     def run(self, machine):
+        """Run program on a machine."""
         self.emit("program_started")
         self.state = "on"
 

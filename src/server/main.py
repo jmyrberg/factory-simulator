@@ -6,11 +6,9 @@ import concurrent
 import logging
 import os
 import sys
-
 from functools import partial
 
-from asyncua import Server
-from asyncua import ua
+from asyncua import Server, ua
 from asyncua.server.users import User, UserRole
 
 from src.simulator.factory import Factory
@@ -66,7 +64,7 @@ async def setup_server(collector):
     server.set_security_IDs(["Username"])
 
     # Variables
-    logger.info('Setting up variables...')
+    logger.info("Setting up variables...")
     idx = await server.register_namespace(SERVER_NAMESPACE)
     factory_obj = await server.nodes.objects.add_object(idx, "Factory")
     dvars = {}
@@ -78,10 +76,7 @@ async def setup_server(collector):
             varianttype = None
 
         dvars[d["name"]] = await factory_obj.add_variable(
-            idx,
-            d["name"],
-            d.get("default"),
-            varianttype=varianttype
+            idx, d["name"], d.get("default"), varianttype=varianttype
         )
 
     return server, dvars

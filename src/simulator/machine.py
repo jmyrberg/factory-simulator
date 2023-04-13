@@ -1,6 +1,8 @@
 """Machine in a factory."""
 
 
+from typing import List, Tuple
+
 import numpy as np
 import simpy
 
@@ -13,7 +15,11 @@ from src.simulator.causes import (
     ProgramSwitchCause,
     UnknownCause,
 )
+from src.simulator.containers import ContainerType
 from src.simulator.issues import PartBrokenIssue, ProductionIssue
+from src.simulator.maintenance import Maintenance
+from src.simulator.program import Program
+from src.simulator.schedules import OperatingSchedule
 from src.simulator.sensors import MachineTemperatureSensor
 from src.simulator.utils import AttributeMonitor, ignore_causes
 
@@ -30,23 +36,36 @@ class Machine(Base):
 
     def __init__(
         self,
-        env,
-        containers=None,
-        schedule=None,
-        programs=None,
-        default_program=None,
-        maintenance=None,
-        part_fail_freq_days=(7, 31),
-        name="machine",
-        uid=None,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        containers: List[ContainerType] | None = None,
+        schedule: OperatingSchedule | None = None,
+        programs: List[Program] | None = None,
+        default_program: Program | None = None,
+        maintenance: Maintenance | None = None,
+        part_fail_freq_days: Tuple[int, int] = (7, 31),
+        name: str = "machine",
+        uid: str | None = None,
     ) -> None:
         """Machine in a factory.
 
-        Possible state changes:
-            off -> on:
-            on -> idle:
-            idle -> on:
-            on -> error:
+        Args:
+            env: Simpy environment.
+            containers (optional): Containers attached to the machine. Defaults
+                to None.
+            schedule (optional): Operating schedule of the machine. Defaults to
+                None.
+            programs (optional): Available programs on the machine. Defaults to
+                None.
+            default_program (optional): Default program of the machine.
+                Defaults to first program in `programs`.
+            maintenance (optional): Maintenance team for the machine. Defaults
+                to None.
+            part_fail_freq_days (optional): 95% confidence intervals that a
+                part failure will happen between (min, max) -days.
+            name (optional): Name of the machine. Defaults to "machine".
+            uid (optional): Unique ID of the object. Defaults to None.
+
+        Possible states: ["off", "on", "production", "error"]
         """
         super().__init__(env, name=name, uid=uid)
         self.schedule = schedule

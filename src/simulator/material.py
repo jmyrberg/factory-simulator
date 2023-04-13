@@ -3,27 +3,69 @@
 
 import hashlib
 import uuid
+from datetime import datetime
+from typing import Tuple
+
+import simpy
 
 from src.simulator.base import Base
 
 
 class Material(Base):
-    def __init__(self, env, name="material", uid=None):
+    def __init__(
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        name: str = "material",
+        uid: str | None = None,
+    ):
+        """Material.
+
+        Args:
+            env: Simpy environment.
+            name (optional): Name of the material. Defaults to "material".
+            uid (optional): Unique ID for the material. Defaults to None.
+        """
         super().__init__(env, name=name, uid=uid)
 
 
 class MaterialBatch(Base):
     def __init__(
         self,
-        env,
-        material,
-        quantity,
-        quality=None,
-        consumption_factor=None,
-        batch_id=None,
-        created_ts=None,
-        name="material-batch",
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        material: Material,
+        quantity: float,
+        quality: Tuple[float, float] | None = None,
+        consumption_factor: Tuple[float, float] | None = None,
+        batch_id: str | None = None,
+        created_ts: datetime | None = None,
+        name: str = "material-batch",
     ):
+        """Material batch.
+
+        Args:
+            env: Simpy environment.
+            material (optional): Material of the batch.
+            quantity (optional): Quantity of material.
+            quality (optional): Quality of material between 0 and 1, where 0
+                is the worst possible quality and 1 is the best. Given as
+                normal distribution parameters (mu, std). Example value:
+                (1, 0.01). Defaults to None, which corresponds to guaranteed
+                quality of 1.
+            consumption_factor (optional): How much needs to be consumed in
+                order to achieve one unit of standardized quality. If 1, then
+                effective quantity = quantity, else it's greater and means that
+                to achieve one unit of standardized quality, one needs to
+                consume `consumption_factor` of quantity. Example value:
+                (1, 0.01). Defaults to None, which corresponds to guaranteed
+                consumption factor of 1.
+            batch_id (optional): Unique identifier of the batch. Defaults to
+                None, which corresponds to random hex combined with creation
+                timestamp.
+            created_ts (optional): Timestamp of batch creation. Defaults to
+                None, which corresponds to now.
+            name (optional): Name of the material batch. Defaults to
+                "material-batch".
+        """
         super().__init__(env, name=name)
         self.material = material
         self.quantity = quantity

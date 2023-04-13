@@ -1,4 +1,4 @@
-"""Interruptions."""
+"""Interruption causes."""
 
 
 class BaseCause(BaseException):

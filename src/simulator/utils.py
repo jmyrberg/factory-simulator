@@ -3,7 +3,7 @@
 
 from collections import UserDict, UserList
 from functools import partial, wraps
-from typing import Callable, Tuple
+from typing import Any, Callable, List, Tuple
 
 import simpy
 from simpy.resources.resource import Preempted
@@ -54,8 +54,25 @@ def copy_class(cls):
     return type(cls.__name__, cls.__bases__, dict(cls.__dict__))
 
 
-def patch_obj(obj, pre=None, post=None, methods=None):
-    """Patch custom classes for data collection."""
+def patch_obj(
+    obj: Any,
+    pre: Callable | None = None,
+    post: Callable | None = None,
+    methods: List[str] | None = None,
+):
+    """Patch custom classes for data collection purposes.
+
+    Args:
+        obj: Object whose given methods to patch.
+        pre (optional): Function to apply before calling `method` of `obj`.
+            Defaults to None.
+        post (optional): Function to apply after calling `method` of `obj`.
+            Defaults to None.
+        methods (optional): Object's method names to patch. Defaults to None.
+
+    Returns:
+        Object with patched methods.
+    """
     # Methods to be patched, if not given
     if methods is None and isinstance(obj, list):
         methods = [
@@ -117,9 +134,30 @@ def patch_obj(obj, pre=None, post=None, methods=None):
 
 
 def with_obj_monitor(
-    obj, attr_obj, pre=None, post=None, methods=None, name=None
+    obj: Any,
+    attr_obj: Any,
+    pre: Callable | None = None,
+    post: Callable | None = None,
+    methods: List[str] | None = None,
+    name: str | None = None,
 ):
-    """Monitor any object."""
+    """Add monitoring to a given object.
+
+    Args:
+        obj: Object whose data attribute will be expanded with new records.
+        attr_obj: Object's attribute object like list or dict, whose methods
+            will be patched.
+        pre (optional): Function to apply before calling `method` of
+            `attr_obj`. Defaults to None.
+        post (optional): Function to apply after calling `method` of
+            `attr_obj`. Defaults to None.
+        methods (optional): Object's method names to patch. Defaults to None.
+        name (optional): Name of the object. Defaults to None, which
+            corresponds to str(attr_obj).
+
+    Returns:
+        Object with patched methods.
+    """
     name = name or str(attr_obj)
 
     def mfunc(attr_obj, key_funcs):

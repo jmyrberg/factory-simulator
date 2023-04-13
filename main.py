@@ -14,4 +14,4 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting simulation")
 factory = Factory.from_config("config/factory.yml")
-factory.run(30)
+factory.run(7)

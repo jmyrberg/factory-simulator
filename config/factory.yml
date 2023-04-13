@@ -1,3 +1,28 @@
+# Simple factory config
+# ---------------------
+# - One machine, one operator, one material/consumable, multiple end products and programs
+# - Simple schedule for programs and raw material procurement
+# - Data collection is optimized for server usage, but depending on your goal, you have three options:
+#     1) Use variables through OPC-UA (default config below)
+#         - Keep monitor=1
+#         - Keep collector uncommented
+#         - Keep exporters -section commented out
+#     2) Collect variables into CSV
+#         - Keep monitor=1
+#         - Keep collector uncommented
+#         - Uncomment exporters -section
+#     3) Keep everything in memory and plot from the object:
+#         - Set monitor=-1
+#         - Collector has no effect as everything is saved into a Python list
+#         - Keep exporters -section commented out
+#         - Access data through Factory -object properties and methods, e.g. using
+#           factory.data, factory.data_df or factory.plot()
+#
+# To understand the possibilities better:
+# - See src.simulator.parser to understand what is being parsed from here and how
+# - See src.simulator.* -modules to understand the inputs
+#
+# The default settings should work as-is - good luck :)
 id: factory
 name: Factory
 randomize: true
@@ -176,6 +201,8 @@ operators:
     name: John
     machine: machine1
 
+# Defines which variables are collected from the simulation
+# Comment if you want to collect all variables instead
 collectors:
   - id: default
     name: Variable collector
@@ -272,11 +299,10 @@ collectors:
         value-map: "lambda x: round(x, 2) if x is not None else 0.00"
         dtype: Double
         default: 0.00
-
-exporters:
-  # Not needed in server mode
-  # - id: csv-exporter
-  #   type: csv
-  #   filepath: results/run.csv
-  #   interval-secs: 60
-  #   collector: default
+# Uncomment if you want to save variables into a CSV file
+# exporters:
+#   - id: csv-exporter
+#     type: csv
+#     filepath: results/run.csv
+#     interval-secs: 60
+#     collector: default

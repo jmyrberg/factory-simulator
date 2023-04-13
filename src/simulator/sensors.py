@@ -1,7 +1,8 @@
-"""Materials."""
+"""Sensors."""
 
 
 import numpy as np
+import simpy
 
 from src.simulator.base import Base
 from src.simulator.issues import OverheatIssue
@@ -9,6 +10,7 @@ from src.simulator.utils import AttributeMonitor, wait_factory
 
 
 def get_sensor_by_type(sensor_type):
+    """Get sensor based on its type."""
     sensor_types = {"room-temperature": RoomTemperatureSensor}
     return sensor_types[sensor_type]
 
@@ -18,8 +20,25 @@ class Sensor(Base):
     value = AttributeMonitor("numerical")
 
     def __init__(
-        self, env, interval=5, init_value=None, name="sensor", uid=None
+        self,
+        env: simpy.Environment | simpy.RealtimeEnvironment,
+        interval: int = 5,
+        init_value: float | int | None = None,
+        name: str = "sensor",
+        uid: str | None = None,
     ):
+        """Sensor that produces or measures data from a process.
+
+        Args:
+            env: Simpy environment.
+            interval (optional): Update interval of the sensor in simulation
+                time units. Defaults to 5.
+            init_value (optional): Initial value of the sensor. Defaults to
+                None.
+            name (optional): Name of the sensor. Defaults to "sensor".
+            uid (optional): Unique ID for the operating schedule. Defaults to
+                None.
+        """
         super().__init__(env, name=name, uid=uid)
         self.interval = interval
         self.value = init_value
@@ -46,6 +65,7 @@ class MachineTemperatureSensor(Sensor):
     value = AttributeMonitor("numerical", name="temperature")
 
     def __init__(self, env, machine, decimals=2, uid=None, **kwargs):
+        """Sensor for machine temperature."""
         kwargs["name"] = f"MachineTemperatureSensor({machine.name})"
         super().__init__(env, uid=uid, **kwargs)
         self.machine = machine
@@ -146,6 +166,7 @@ class RoomTemperatureSensor(Sensor):
     value = AttributeMonitor("numerical", name="temperature")
 
     def __init__(self, env, factory, decimals=2, uid=None, **kwargs):
+        """Sensor for factory room temperature."""
         kwargs["name"] = f"RoomTemperatureSensor({factory.name})"
         super().__init__(env, init_value=19, uid=uid, **kwargs)
         self.factory = factory
