@@ -1,12 +1,10 @@
 # :factory: Factory Simulator
 
-Factory floor simulator written in Python using [simpy](https://simpy.readthedocs.io). The simulator can be used as-is for a simple OPC-UA demo server in a container, or as a basis for more complex real factory floor simulation.
+Factory floor simulator written in Python using [simpy](https://simpy.readthedocs.io). The simulator can be used as-is for a simple OPC-UA demo server in a container, or as a basis for more complex real factory floor simulation. See example simulation output for a 7-day simulation [here](./docs/categorical-results.png) and [here](./docs/numerical-results.png).
 
 ![Simulator](./docs/simulator-log.gif)
 
-See example simulation output for a 7-day simulation [here](./docs/categorical-results.png) and [here](./docs/numerical-results.png).
-
-:exclamation: I have no plans on updating or creating a proper package out of this hobby project, but hopefully you find it useful :v:
+:exclamation: I have no plans on creating a package out of this hobby project, but hopefully you find it useful :v:
 
 ## Installation
 
