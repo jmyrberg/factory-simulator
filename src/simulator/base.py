@@ -78,6 +78,14 @@ class Base:
         columns = ["dtype", "obj", "key", "ds", "value"]
         return pd.DataFrame(flatten, columns=columns)
 
+    def get_dict_getter_func(self, uid: str, default_value=None) -> Callable:
+        """Create a function that gets values from a dictionary."""
+
+        def wrapper_func(d):
+            return d[uid] if uid in d else default_value
+
+        return wrapper_func
+
     def with_monitor(
         self,
         obj: Any,
