@@ -61,7 +61,7 @@ class Program(Base):
         self.consumption = self.with_monitor(
             {},
             post=[
-                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
+                (obj.uid, self.get_dict_getter_func(obj.uid, default_value=0))
                 for mtype in ["consumables", "materials"]
                 for obj, d in getattr(self.bom, mtype).items()
             ],
@@ -74,7 +74,7 @@ class Program(Base):
         self.product_quantity = self.with_monitor(
             {},
             post=[
-                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else 0)
+                (obj.uid, self.get_dict_getter_func(obj.uid, default_value=0))
                 for obj, d in self.bom.products.items()
             ],
             name="product_quantity",
@@ -84,7 +84,10 @@ class Program(Base):
         self.latest_batch_id = self.with_monitor(
             {},
             post=[
-                (obj.uid, lambda x: x[obj.uid] if obj.uid in x else "null")
+                (
+                    obj.uid,
+                    self.get_dict_getter_func(obj.uid, default_value="null"),
+                )
                 for obj, d in self.bom.materials.items()
             ],
             name="latest_batch_id",
