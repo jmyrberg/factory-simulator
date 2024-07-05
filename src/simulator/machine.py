@@ -89,7 +89,7 @@ class Machine(Base):
         self.consumption = self.with_monitor(  # Updated within program
             {},
             post=[
-                (uid, lambda x: x[uid] if uid in x else 0)
+                (uid, self.get_dict_getter_func(uid, default_value=0.0))
                 for uid in set(
                     [
                         uid
@@ -106,7 +106,7 @@ class Machine(Base):
         self.material_id = self.with_monitor(
             {},
             post=[
-                (uid, lambda x: x[uid] if uid in x else 0)
+                (uid, self.get_dict_getter_func(uid, default_value=0))
                 for uid in set(
                     [
                         uid
@@ -120,7 +120,7 @@ class Machine(Base):
         self.latest_batch_id = self.with_monitor(
             {},
             post=[
-                (uid, lambda x: x[uid] if uid in x else "null")
+                (uid, self.get_dict_getter_func(uid, default_value="null"))
                 for uid in set(
                     [
                         uid
